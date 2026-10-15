@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+.venv/
+venv/
+env/
+
+# Environment / secrets
+.env
+.env.*
+*.key
+
+# Local data (健康数据极敏感：真实报告与台账永不入 git)
+*.db
+*.sqlite
+*.sqlite3
+_reports/
+real_reports/
+private/
+_private/
+*.pdf
+!data/samples/**/*.pdf
+*.jpg
+*.jpeg
+*.png
+!data/samples/**/*.jpg
+!data/samples/**/*.png
+
+# OCR model cache
+models/
+.onnx/
+~/.RapidOCR
+.cache/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Logs / temp
+*.log
+tmp/
