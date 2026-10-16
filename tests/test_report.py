@@ -319,3 +319,79 @@ def test_render_trends_to_file_writes_atomically():
         )
         assert os.path.isfile(written)
         assert os.path.abspath(target) == written
+
+
+# ---------------------------------------------------------------- render_html（台账接口）
+
+
+def test_render_html_reads_ledger_and_draws_trends():
+    """`render_html(ledger, *, out, subject)`（`plan/03` 模块④ 的对外接口）真读台账出图。
+
+    两次不同日期入库 → 每指标折线含 2 点；有区间 → 画带。
+    """
+    from checkup_ledger.ledger import open_ledger, upsert
+    from checkup_ledger.report import render_html
+
+    spec = yaml_bounds("ALT")
+    with tempfile.TemporaryDirectory() as tmp:
+        db = os.path.join(tmp, "l.db")
+        target = os.path.join(tmp, "r.html")
+        with open_ledger(db) as ledger:
+            for date, value, flag in (
+                ("2023-03-11", spec["high"], FLAG_HIGH),
+                ("2024-03-11", spec["low"], FLAG_LOW),
+            ):
+                upsert(
+                    ledger,
+                    [_judged("ALT", value, flag, low=spec["low"], high=spec["high"])],
+                    subject="张三",
+                    date=date,
+                )
+            written = render_html(ledger, out=target, subject="张三")
+        assert written == os.path.abspath(target), "render_html 未返回写出的绝对路径"
+        with open(target, "r", encoding="utf-8") as handle:
+            document = handle.read()
+    assert document.count("<svg") == 1, "单指标应有 1 张折线：%d" % document.count("<svg")
+    assert document.count("<circle") == 2, "两次采血应有 2 个点：%d" % document.count("<circle")
+    assert 'class="band"' in document, "有区间却未画带"
+    assert find_external_resources(document) == [], "报告含外链"
+
+
+def test_render_html_falls_back_to_table_when_ledger_empty():
+    """台账为空但有本次判定 → 退回**判定表**（没有历史就不伪造一条单点"趋势"）。"""
+    from checkup_ledger.ledger import open_ledger
+    from checkup_ledger.report import render_html
+
+    spec = yaml_bounds("ALT")
+    with tempfile.TemporaryDirectory() as tmp:
+        db = os.path.join(tmp, "empty.db")
+        target = os.path.join(tmp, "r.html")
+        with open_ledger(db) as ledger:
+            render_html(
+                ledger,
+                out=target,
+                subject="张三",
+                judged=[_judged("ALT", spec["high"], FLAG_HIGH, low=spec["low"], high=spec["high"])],
+            )
+        with open(target, "r", encoding="utf-8") as handle:
+            document = handle.read()
+    assert "<svg" not in document, "台账为空却画出了折线（伪造单点趋势）"
+    assert "ALT" in document, "退回判定表后未展示本次判定"
+    assert find_external_resources(document) == []
+
+
+def test_render_html_renders_empty_report_without_error():
+    """台账空 + 无本次判定 → 仍出一份空报告（附免责，不报错）。"""
+    from checkup_ledger.ledger import open_ledger
+    from checkup_ledger.report import render_html
+
+    with tempfile.TemporaryDirectory() as tmp:
+        db = os.path.join(tmp, "empty.db")
+        target = os.path.join(tmp, "r.html")
+        with open_ledger(db) as ledger:
+            written = render_html(ledger, out=target, subject="张三")
+        assert os.path.isfile(written)
+        with open(target, "r", encoding="utf-8") as handle:
+            document = handle.read()
+    assert "本工具不做诊断" in document, "空报告缺常驻免责段"
+    assert find_external_resources(document) == []

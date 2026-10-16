@@ -34,7 +34,7 @@
 | `tests/test_layering.py` | 新增 17 项（计算/装配分离 / 台账层不做判定 / 免责落点与真实入口触发） |
 | `tests/test_pii_gate.py` | 新增 3 项（真建台账库被拦 / `.gitignore` 覆盖 / 仓库无被跟踪 db） |
 | `tests/test_exit_codes.py` | 退役后重写（四条防复活断言 + 三条命令真实实现断言） |
-| `tools/mutation_check.py` | 变异表扩到 **63 条**（M4 新增 24 条） |
+| `tools/mutation_check.py` | 变异表扩到 **64 条**（M4 新增 25 条） |
 
 **实测证据（本地等价校验，未接远端，CI 待首推验证）**：
 
@@ -49,7 +49,7 @@ selftest → 6/6；bench → 达标 64/64（--probe-fault → exit 1）
 no-such-cmd / version --bogus → exit 2；ledger 缺库 → exit 1；入库缺 --date → exit 2
 gen_samples.py --check / gen_ingest_fixtures.py --check → 25 / 5 个产物逐字节一致
 verify_ledger.py --verify → 37 条资产 sha256 逐字节一致
-mutation_check.py → 63 条变异全部变红，恢复后全绿
+mutation_check.py → 64 条变异全部变红，恢复后全绿
 pii_gate.py --selftest → 阳性 6 被拦 + 阴性 4 放行
 ```
 
@@ -62,7 +62,11 @@ pii_gate.py --selftest → 阳性 6 被拦 + 阴性 4 放行
 5. **`mark_accepted` 只接 `OSError`**（非法路径使工具崩）→ 同时接 `ValueError`；
 6. **台账"覆盖计数"漏算 `source_file`**（注记与实际动作对不上）→ 按完整唯一键查；
 7. **两处假门（变异验证抓出）**：渲染词根门只查"名字出现过" → 改**配对**守；
-   "值域含端点"测试夹具不可证伪 → 改"观测点全在区间内侧"。
+   "值域含端点"测试夹具不可证伪 → 改"观测点全在区间内侧"；
+8. **测试污染开发者真实主目录**：`ledger`/`export`/`report` 经 `main()` 触发首启免责，
+   把标记落进**真实** `~/.checkup_ledger/accepted`（实测发现 `~` 里真多了这个文件）。
+   处置：`tests/helpers.py` 导入时把免责标记重定向到仓库外一次性目录，并加两条门
+   （隔离路径 ≠ 默认标记路径 + 跑数据命令后真实主目录不出现 `.checkup_ledger`）。
 
 ## 二、下一棒待办（M5 交付 / 免安装产物）
 
@@ -105,6 +109,7 @@ pii_gate.py --selftest → 阳性 6 被拦 + 阴性 4 放行
 | **K69** | **首启免责**：标记落**用户主目录**、写失败不报错、标记不含身份元信息；**真实入口（`argv=None`）必须触发**（回落 `sys.argv[1:]`），自检类命令跳过 | `disclaimer.py` + `cli.py:_first_run_disclaimer` | `test_disclaimer_writes_marker_only_in_given_home` / `test_cli_first_run_disclaimer_fires_on_real_entry_path` / `..._skips_self_check_commands` + 2 条变异 |
 | **K70** | **`NOT_READY`(4) 整项退役**：常量 + `cmd_not_ready` + 拦截名单**一并删除**（不留死码）；四处同步 + 三条防复活断言 | `exit_codes.py` + `cli.py` + README + `plan/02` | `test_not_ready_module_list_is_gone` / `test_exit_codes_module_has_no_resurrected_stage_codes` / `test_ledger_export_report_are_no_longer_intercepted_by_not_ready` + 3 条变异 |
 | **K71** | **零字面量 token 集唯一实算处** = `tests/helpers.py:load_yaml_tokens`（各层子门共用）；各层按**真实 token 集**比对，不自定豁免清单 | `tests/helpers.py` + `test_layering.py` + `test_no_literal_thresholds.py` | `test_ledger_layer_has_no_embedded_range_numbers` / `test_export_layer_has_no_embedded_range_numbers` |
+| **K73** | **测试不污染真实主目录**：`tests/helpers.py` 导入时把免责标记重定向到仓库外一次性目录；显式 `env={}` 的单元用例不受影响 | `tests/helpers.py` | `test_helpers_isolate_disclaimer_marker_from_real_home` / `test_data_commands_do_not_create_marker_in_real_home` + 变异"隔离路径=真实主目录 → 必红" |
 | **K72** | **台账 `*.db` 与真实报告永不入 git**：`.gitignore` 覆盖 + PII gate 类型面拦；台账库缺省落 `~/.checkup_ledger/ledger.db` | `tools/pii_gate.py` + `.gitignore` + `cli.py` | `test_real_ledger_database_is_blocked_by_gate` / `test_ledger_db_is_gitignored` / `test_repo_contains_no_tracked_database_files` |
 
 ## 四、本机环境坑（只写实测过的）
@@ -157,7 +162,7 @@ pii_gate.py --selftest → 阳性 6 被拦 + 阴性 4 放行
 - [x] 跨层趋势对齐（台账侧 ↔ M1 真值 `expected_trends` 逐条相等）
 - [x] 双解释器全量测试绿，收集数一致（396 / 396，各 1 skipped）
 - [x] 台账复核通过（37 条）；基准两层 64/64；生成器位级一致（25 / 5）
-- [x] 每条新增守门做过**变异验证**（63/63 全红后恢复绿）
+- [x] 每条新增守门做过**变异验证**（64/64 全红后恢复绿）
 - [x] PII gate 双向自证（阳性 6 被拦 + 阴性 4 放行）
 - [x] 无远端期间的"未推送"状态已在 README/plan/00 如实标注
 - [x] `plan/00/02/03/04/05/06` + `README.md` + `data/README.md` 状态回写
@@ -196,7 +201,7 @@ py -3.12 tools/verify_ledger.py --update  # 重算台账（37 条）
 py -3.12 tools/verify_ledger.py --verify  # 复核（手改被检出）
 
 # 守门自证
-py -3.12 tools/mutation_check.py          # 63 条变异验证（期望 exit 0）
+py -3.12 tools/mutation_check.py          # 64 条变异验证（期望 exit 0）
 py -3.12 tools/pii_gate.py --selftest     # 双向自证（期望 exit 0）
 py -3.12 tools/pii_gate.py --staged       # pre-commit 的真实调用形态
 ```

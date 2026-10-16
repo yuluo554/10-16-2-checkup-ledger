@@ -3,6 +3,7 @@
 import io
 import os
 import sys
+import tempfile
 from contextlib import redirect_stderr, redirect_stdout
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -10,6 +11,19 @@ SRC_ROOT = os.path.join(REPO_ROOT, "src")
 
 if SRC_ROOT not in sys.path:
     sys.path.insert(0, SRC_ROOT)
+
+# 免责标记的环境变量名（与 `checkup_ledger.disclaimer.ENV_ACCEPTED_PATH` 同源）
+_ACCEPTED_ENV = "CHECKUP_LEDGER_ACCEPTED"
+
+# 测试期的隔离主目录：**测试永不写真实 `~`**。
+#
+# 为什么要这一条（实测抓到的真缺陷）：`ledger`/`export`/`report` 三个命令会经
+# `main()` 触发首启免责，把标记落到 `~/.checkup_ledger/accepted`。测试若直接调
+# `main()`，就会在**开发者/CI 机器的真实主目录**里留下文件——测试污染用户环境，
+# 且第二次运行起免责不再打印（后续用例再也测不到首启行为）。
+# 故这里把免责标记重定向到一个仓库外的一次性目录（进程级，模块导入时设一次）。
+_ISOLATED_HOME = tempfile.mkdtemp(prefix="checkup-ledger-test-home-")
+os.environ.setdefault(_ACCEPTED_ENV, os.path.join(_ISOLATED_HOME, "accepted"))
 
 
 def repo_path(*parts) -> str:
@@ -26,6 +40,10 @@ def run_cli(argv=None):
 
     注意断言要落在 `out.getvalue()` / `err.getvalue()` 上——对 StringIO **对象**
     做 `in` 判断是按整对象行匹配，中文消息会静默假失败。
+
+    免责标记已由本模块导入时重定向到隔离目录（见上方注记）——但**显式传参的用例
+    仍应自己传 `home`/env**，不依赖这条兜底（兜底只保证"不污染真实主目录"，
+    不保证"每个用例都拿到干净状态"）。
     """
     from checkup_ledger.cli import main
 

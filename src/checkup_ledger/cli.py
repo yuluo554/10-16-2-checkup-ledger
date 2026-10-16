@@ -1021,9 +1021,7 @@ def cmd_export(args) -> int:
 def cmd_report(args) -> int:
     """模块⑤b 本地 HTML 报告：判定表 + 单指标折线 + 自身历史分位 + 区间带。"""
     from checkup_ledger.ledger import LedgerError, open_ledger, rows_for, upsert
-    from checkup_ledger.report.html import render_measurements, render_trends_to_file
-    from checkup_ledger.report.trend import series_from_rows
-    from checkup_ledger.serialize import write_atomic
+    from checkup_ledger.report import render_html
 
     pipeline = _load_pipeline(args)
     if pipeline is None:
@@ -1051,24 +1049,23 @@ def cmd_report(args) -> int:
         else:
             print("注记[no_date]：未给采样日期，本次结果不入库；折线只用台账既有记录")
 
-        rows = rows_for(ledger, subject=args.subject)
-        series_list = series_from_rows(rows)
+        series_count = len(rows_for(ledger, subject=args.subject))
 
         for path, judged, _ingested, _normalized in results:
             out_path = args.out or _default_out_path(path, ".report", "html")
-            if series_list:
-                written = render_trends_to_file(
-                    series_list, out_path, subject=args.subject, title="纵向趋势报告（%s）" % args.subject
-                )
-            else:
-                write_atomic(out_path, render_measurements(judged, subject=args.subject))
-                written = os.path.abspath(os.fspath(out_path))
+            written = render_html(
+                ledger,
+                out=out_path,
+                subject=args.subject,
+                judged=judged,
+                title="纵向趋势报告（%s）" % args.subject,
+            )
             print(
-                "== %s ==\n已出报告：%s（本次判定 %d 条，台账序列 %d 项指标）"
-                % (os.path.basename(os.fspath(path)), written, len(judged), len(series_list))
+                "== %s ==\n已出报告：%s（本次判定 %d 条，台账记录 %d 条）"
+                % (os.path.basename(os.fspath(path)), written, len(judged), series_count)
             )
             payloads.append(
-                {"path": os.fspath(path), "out": written, "series": len(series_list)}
+                {"path": os.fspath(path), "out": written, "ledger_rows": series_count}
             )
     except LedgerError as exc:
         print("台账错误：%s" % exc, file=sys.stderr)

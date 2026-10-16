@@ -542,6 +542,17 @@ def _load_mutations():
             "target": "免责（真实入口也触发）",
         },
         {
+            "name": "测试-污染真实主目录",
+            "file": os.path.join(ROOT, "tests", "helpers.py"),
+            "old": 'os.environ.setdefault(_ACCEPTED_ENV, os.path.join(_ISOLATED_HOME, "accepted"))',
+            "new": (
+                'os.environ.setdefault(_ACCEPTED_ENV, os.path.join(os.path.expanduser("~"), '
+                '".checkup_ledger", "accepted"))  # 变异：隔离路径 = 真实主目录标记路径'
+            ),
+            "cmd": [sys.executable, "-m", "pytest", "-q", "tests/test_layering.py"],
+            "target": "测试隔离（不污染真实主目录）",
+        },
+        {
             "name": "not-ready-拦截语义复活",
             "file": os.path.join(SRC, "checkup_ledger", "cli.py"),
             "old": "    if command == \"ledger\":\n        return cmd_ledger(args)",

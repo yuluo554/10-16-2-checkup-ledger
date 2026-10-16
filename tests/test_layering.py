@@ -19,10 +19,18 @@
 
 import ast
 import os
+import tempfile
 
 import pytest
 
-from helpers import bounds_pair, iter_python_files, load_yaml_tokens, read_text, repo_path
+from helpers import (
+    bounds_pair,
+    iter_python_files,
+    load_yaml_tokens,
+    read_text,
+    repo_path,
+    run_cli,
+)
 
 FORBIDDEN_IO_MODULES = (
     "io", "os", "pathlib", "glob", "shutil", "socket", "urllib", "http",
@@ -660,19 +668,24 @@ def test_render_assembly_modules_do_not_import_engine():
 
 
 def test_disclaimer_writes_marker_only_in_given_home():
-    """免责标记落在**给定主目录**内（测试不许去动真实 `~`）。"""
+    """免责标记落在**给定主目录**内（测试不许去动真实 `~`）。
+
+    显式传 `env={}`：`env=None` 会回落 `os.environ`，而测试期 `helpers.py` 已把
+    免责标记重定向到隔离目录（防污染真实主目录）——不传空 env 的话，这些用例
+    实际测的是隔离目录而不是传进来的 `home`（**假通过**）。
+    """
     import tempfile
 
     from checkup_ledger import disclaimer
 
     with tempfile.TemporaryDirectory() as tmp:
-        assert disclaimer.needs_disclaimer(home=tmp), "首次运行应需要打印免责"
-        assert disclaimer.mark_accepted(home=tmp) is True
-        assert disclaimer.is_accepted(home=tmp), "标记未落盘"
-        assert not disclaimer.needs_disclaimer(home=tmp), "已接受仍报需要"
-        assert os.path.isfile(disclaimer.accepted_path(home=tmp)), "标记文件不在给定主目录内"
+        assert disclaimer.needs_disclaimer(home=tmp, env={}), "首次运行应需要打印免责"
+        assert disclaimer.mark_accepted(home=tmp, env={}) is True
+        assert disclaimer.is_accepted(home=tmp, env={}), "标记未落盘"
+        assert not disclaimer.needs_disclaimer(home=tmp, env={}), "已接受仍报需要"
+        assert os.path.isfile(disclaimer.accepted_path(home=tmp, env={})), "标记文件不在给定主目录内"
         # 再落一次是幂等的（不报错）
-        assert disclaimer.mark_accepted(home=tmp) is True
+        assert disclaimer.mark_accepted(home=tmp, env={}) is True
 
 
 def test_disclaimer_marker_contains_no_identity_metadata():
@@ -683,8 +696,8 @@ def test_disclaimer_marker_contains_no_identity_metadata():
     from checkup_ledger import disclaimer
 
     with tempfile.TemporaryDirectory() as tmp:
-        disclaimer.mark_accepted(home=tmp)
-        with open(disclaimer.accepted_path(home=tmp), "r", encoding="utf-8") as handle:
+        disclaimer.mark_accepted(home=tmp, env={})
+        with open(disclaimer.accepted_path(home=tmp, env={}), "r", encoding="utf-8") as handle:
             text = handle.read()
     assert text.strip(), "标记文件为空（探针失效）"
     assert not re.search(r"\d{4}-\d{2}-\d{2}", text), "标记文件含日期（身份线索）"
@@ -698,9 +711,9 @@ def test_disclaimer_banner_is_empty_after_acceptance():
     from checkup_ledger import disclaimer
 
     with tempfile.TemporaryDirectory() as tmp:
-        assert disclaimer.first_run_banner(home=tmp) == disclaimer.DISCLAIMER_TEXT
-        disclaimer.mark_accepted(home=tmp)
-        assert disclaimer.first_run_banner(home=tmp) == ""
+        assert disclaimer.first_run_banner(home=tmp, env={}) == disclaimer.DISCLAIMER_TEXT
+        disclaimer.mark_accepted(home=tmp, env={})
+        assert disclaimer.first_run_banner(home=tmp, env={}) == ""
 
 
 def test_disclaimer_failure_to_write_is_not_an_error():
@@ -709,8 +722,8 @@ def test_disclaimer_failure_to_write_is_not_an_error():
 
     # 指向一个不可能写入的路径（非法字符使 open 必失败）
     unwritable = os.path.join("\0-invalid", "accepted")
-    assert disclaimer.mark_accepted(home=unwritable) is False, "写入失败未被如实返回"
-    assert disclaimer.needs_disclaimer(home=unwritable), "写入失败后仍报已接受"
+    assert disclaimer.mark_accepted(home=unwritable, env={}) is False, "写入失败未被如实返回"
+    assert disclaimer.needs_disclaimer(home=unwritable, env={}), "写入失败后仍报已接受"
 
 
 def test_disclaimer_banner_text_carries_the_required_statements():
@@ -720,6 +733,64 @@ def test_disclaimer_banner_text_carries_the_required_statements():
     text = disclaimer.DISCLAIMER_TEXT
     for keyword in ("不是医疗器械", "机械比较", "LIS", "不联网"):
         assert keyword in text, "免责文本缺关键表述：%s" % keyword
+
+
+def test_helpers_isolate_disclaimer_marker_from_real_home():
+    """**测试不得污染开发者/CI 的真实主目录**（实测抓到的真缺陷）。
+
+    `ledger`/`export`/`report` 经 `main()` 会触发首启免责并把标记落到
+    `~/.checkup_ledger/accepted`。测试若直接调 `main()`（`helpers.run_cli` 就是），
+    就会在**真实主目录**里留下文件——污染用户环境，且第二次起免责不再打印
+    （后续用例再也测不到首启行为）。
+
+    这条门断言 `helpers` 导入时已把标记重定向到仓库外的一次性目录，且
+    **该路径不在真实主目录之下**。
+    """
+    import helpers
+
+    from checkup_ledger import disclaimer
+
+    assert helpers._ACCEPTED_ENV == disclaimer.ENV_ACCEPTED_PATH, (
+        "helpers 与 disclaimer 的环境变量名不同源（重定向会失效）"
+    )
+    override = os.environ.get(helpers._ACCEPTED_ENV)
+    assert override, "helpers 未设置免责标记的隔离路径（测试会写进真实主目录）"
+
+    real_home = os.path.abspath(os.path.expanduser("~"))
+    resolved = os.path.abspath(override)
+    # 判据是**不落在默认标记路径上**，而不是"不在用户目录之下"——Windows 上
+    # `tempfile.gettempdir()` 就在用户目录之下（`%LOCALAPPDATA%\Temp`），
+    # 拿"是否在 ~ 之下"判会把合法隔离路径误判成污染。
+    default_marker = os.path.join(real_home, ".checkup_ledger", "accepted")
+    assert resolved != os.path.abspath(default_marker), (
+        "隔离路径就是默认标记路径（测试仍会写进真实主目录）"
+    )
+    assert os.path.dirname(resolved) != os.path.join(real_home, ".checkup_ledger"), (
+        "隔离路径仍落在 ~/.checkup_ledger 内（会污染用户环境）：%s" % resolved
+    )
+    # 显式 `env={}` 时**不受**隔离影响（单元用例走 home 参数）：
+    # 空 env 下应回落默认标记路径，而不是隔离路径。
+    explicit = disclaimer.accepted_path(env={})
+    assert os.path.abspath(explicit) != resolved, (
+        "显式 env={} 仍被隔离路径覆盖（单元用例测不到 home 参数的真实行为）"
+    )
+    assert os.path.abspath(explicit) == os.path.abspath(default_marker), (
+        "空 env 下应回落 ~/.checkup_ledger/accepted（隔离只作用于测试进程的环境变量）"
+    )
+
+
+def test_data_commands_do_not_create_marker_in_real_home():
+    """跑一次真实数据命令后，真实主目录**不出现** `.checkup_ledger`（隔离生效的实物证明）。"""
+    real_home = os.path.abspath(os.path.expanduser("~"))
+    marker_dir = os.path.join(real_home, ".checkup_ledger")
+
+    existed_before = os.path.isdir(marker_dir)
+    run_cli(["ledger", "--db", os.path.join(tempfile.gettempdir(), "no-such-ledger-xyz.db")])
+    existed_after = os.path.isdir(marker_dir)
+
+    assert existed_after == existed_before, (
+        "跑数据命令后真实主目录里出现了 .checkup_ledger（测试污染用户环境）"
+    )
 
 
 def test_cli_first_run_disclaimer_fires_on_real_entry_path():
