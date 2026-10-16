@@ -53,8 +53,9 @@ python -m pytest
 checkup-ledger version                      # 版本与环境
 checkup-ledger selftest                     # 内置自检：数据目录 / 知识库门禁 / 写盘确定性 / 零外链守卫
 checkup-ledger indicators                   # 列出内置区间条目与未启用清单
-checkup-ledger bench                        # 跑判定契约基准（全部套件）
+checkup-ledger bench                        # 跑判定基准（两层：规则驱动 + 样例驱动）
 checkup-ledger bench --only 边界语义         # 只跑一个套件（其余标注"未启用"，不计入通过数）
+checkup-ledger bench --only 样例真值回归      # 样例驱动层套件（读 data/samples/）
 checkup-ledger bench --probe-fault          # 可证伪探活：注入已知缺陷，基准必须报未达标
 ```
 
@@ -65,6 +66,15 @@ checkup-ledger selftest                     # ① 安装后的控制台脚本
 python -m checkup_ledger selftest           # ② 模块形式
 py -X utf8 -m checkup_ledger selftest       # ③ Windows 中文控制台推荐写法
 ```
+
+**基准分两层**（各治一类盲区）：
+
+| 层 | 数据 | 治什么 |
+|---|---|---|
+| 规则驱动层 | 随包 `benchmark/cases.json` | 手工枚举四态/边界/优先级组合，**不读真值库**——兜住"样例没覆盖到的端点" |
+| 样例驱动层 | `data/samples/`（合成报告 + 植入真值） | 读植入真值验端到端判定——治"引擎在真实报告形态上是否仍正确" |
+
+> `data/samples/` 是**开发期资产**（不随包分发）。在安装态/冻结态跑基准时，样例层会**如实标注"数据不在位、本层未启用"**，不计入通过数——**不伪造通过**。
 
 **退出码语义**（非零 ≠ 跑挂）：
 
@@ -84,7 +94,36 @@ py -X utf8 -m checkup_ledger selftest       # ③ Windows 中文控制台推荐�
 2. **内置默认值**——仅当报告未印区间时兜底，每条都标注来源分册与版本，可读 `src/checkup_ledger/data/indicators.yaml`；
 3. **无区间 → 拒判**——只展示趋势、不标异常。**"不判"是明确结论，不是"正常"**。
 
-内置条目当前一律标 `pending`（尚未拿到标准原文逐条核对）。**`pending` 不进判定路径**——也就是说，报告没印区间时会走"拒判"。这是设计内行为：**宁可拒判，也不臆造区间**。
+内置条目当前一律标 `pending`（WS/T 404/405 全文不可直连，区间数值无法逐条核对）。**`pending` 不进判定路径**——也就是说，报告没印区间时会走"拒判"。这是设计内行为：**宁可拒判，也不臆造区间**。
+
+条目的**来源分册号已核对**（工标网书目页）：其中血脂、血糖、尿酸在 WS/T 404/405 系列中**没有对应分册**，故这三类的标准号字段如实标"未定位"，**不用方法标准冒充区间来源**。核对记录见 [`data/README.md`](data/README.md) 第六节。
+
+---
+
+## 合成样例与真值基准
+
+`data/samples/` 提供**程序化生成**的合成报告集与植入真值（假姓名白名单 + 假机构名，**绝无真实报告**）：
+
+```bash
+# 生成（确定性：固定 seed，两次运行逐字节一致）
+py -3.12 tools/gen_samples.py
+
+# 位级一致校验（再生成与磁盘产物逐字节比对）
+py -3.12 tools/gen_samples.py --check
+
+# 台账重算 / 复核（sha256 清单，生成物非手编）
+py -3.12 tools/verify_ledger.py --update
+py -3.12 tools/verify_ledger.py --verify
+```
+
+| 资产 | 位置 | 说明 |
+|---|---|---|
+| 合成报告（12 例） | `data/samples/cases/*.txt` | 文本层可读形态 |
+| 植入真值 | `data/samples/truth/*.truth.json` | **只存"输入与期望"**，观测由基准运行时实算 |
+| 覆盖度门槛 | `data/samples/manifest.json` | 门槛以**数据**下发（非代码），总数/采样数双登记 |
+| 数据资产台账 | `data/ledger/assets.csv` | sha256 清单，`--update` 重算 |
+
+真值与引擎**共用同一处判定规则**（`engine/compare.py`），不手写第二份口径；区间数值**只在知识库一处定义**（零字面量门禁守）。
 
 ---
 
@@ -104,7 +143,7 @@ git config core.hooksPath .githooks
 
 ## 项目状态
 
-- 当前：**M0 骨架与基建**——仓库可跑、纪律可验、门禁在位，业务模块按里程碑推进。
+- 当前：**M1 数据先行**——合成样例集 + 植入真值 + 内置区间知识库来源核对已落地；解析/台账/导出三层按里程碑推进。
 - 里程碑与 DoD 见 [`plan/05-里程碑与发布.md`](plan/05-里程碑与发布.md)；架构见 [`plan/02-架构与技术选型.md`](plan/02-架构与技术选型.md)。
 
 ### 本地等价校验（诚实口径）

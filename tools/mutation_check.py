@@ -33,8 +33,29 @@ def _write(path, text):
         handle.write(text)
 
 
+def _yaml_probe_literal():
+    """从知识库取一个区间数值作为变异探针（**不在本文件写死**）。
+
+    变异载荷里若直接写死一个区间数值，本文件自己就成了"区间数值的第二处定义"
+    ——零字面量门禁会（正确地）把它拦下。故探针值从 YAML 实算。
+    """
+    import yaml
+
+    path = os.path.join(SRC, "checkup_ledger", "data", "indicators.yaml")
+    with open(path, "r", encoding="utf-8") as handle:
+        root = yaml.safe_load(handle)
+    for entry in root["indicators"]:
+        rng = entry.get("default_range") or {}
+        for key in ("low", "high"):
+            value = rng.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                return int(value) if float(value).is_integer() else value
+    raise RuntimeError("知识库没有任何区间数值可用作探针")
+
+
 def _load_mutations():
     """变异表：文件 / 原串 / 新串 / 说明 / 该变红的目标命令。"""
+    probe = _yaml_probe_literal()
     return [
         {
             "name": "engine-high-判反",
@@ -131,6 +152,63 @@ def _load_mutations():
             "new": "        return package_root()  # 变异：静默回落",
             "cmd": [sys.executable, "-m", "pytest", "-q", "tests/test_paths.py"],
             "target": "paths（冻结态缺数据必须报错）",
+        },
+        # ---- M1：数据先行层新增守门 ----
+        {
+            "name": "engine-塞入区间字面量",
+            "file": os.path.join(SRC, "checkup_ledger", "engine", "compare.py"),
+            "old": "def compare(value: float, ref: RefRange) -> str:",
+            "new": "LEAKED_THRESHOLD = %s  # 变异：往引擎塞区间字面量\n\n\ndef compare(value: float, ref: RefRange) -> str:" % probe,
+            "cmd": [sys.executable, "-m", "pytest", "-q", "tests/test_no_literal_thresholds.py"],
+            "target": "零字面量门禁（引擎不得出现区间数值）",
+        },
+        {
+            "name": "engine-忽略适用域",
+            "file": os.path.join(SRC, "checkup_ledger", "engine", "compare.py"),
+            "old": "    if default is not None and range_applies_to(default_constraint, subject_sex):",
+            "new": "    if default is not None:  # 变异：忽略适用域",
+            "cmd": [sys.executable, "-m", "pytest", "-q", "tests/test_samples.py"],
+            "target": "样例层（applies_to.sex 生效）",
+        },
+        {
+            "name": "engine-趋势方向判反",
+            "file": os.path.join(SRC, "checkup_ledger", "engine", "compare.py"),
+            "old": "    if delta > 0:\n        return TREND_UP",
+            "new": "    if delta > 0:\n        return TREND_DOWN  # 变异：趋势判反",
+            "cmd": [sys.executable, "-m", "pytest", "-q", "tests/test_samples.py"],
+            "target": "样例层（趋势三态）",
+        },
+        {
+            "name": "gen-改用系统时钟",
+            "file": os.path.join(HERE, "gen_samples.py"),
+            "old": "import argparse\nimport os\nimport sys",
+            "new": "import argparse\nimport os\nimport sys\nimport time  # 变异：引入非确定性来源",
+            "cmd": [sys.executable, "-m", "pytest", "-q", "tests/test_samples.py"],
+            "target": "生成器确定性（禁时钟）",
+        },
+        {
+            "name": "gen-真值改存观测",
+            "file": os.path.join(HERE, "gen_samples.py"),
+            "old": "            \"expected_flag\": flag,",
+            "new": "            \"expected_flag\": flag,\n            \"observed_flag\": flag,  # 变异：真值库里塞观测",
+            "cmd": [sys.executable, "-m", "pytest", "-q", "tests/test_samples.py"],
+            "target": "真值库无观测字段",
+        },
+        {
+            "name": "samples-未复核行也落库",
+            "file": os.path.join(HERE, "gen_samples.py"),
+            "old": "        if row[\"pending_review\"]:\n            pending.append(",
+            "new": "        if False:  # 变异：未复核行也落库\n            pending.append(",
+            "cmd": [sys.executable, "-m", "pytest", "-q", "tests/test_samples.py"],
+            "target": "低置信复核（未复核不落库）",
+        },
+        {
+            "name": "ledger-手改台账",
+            "file": os.path.join(ROOT, "data", "ledger", "assets.csv"),
+            "old": "asset_class,rel_path,bytes,sha256",
+            "new": "asset_class,rel_path,bytes,sha256\nB-伪造,data/samples/伪造.txt,1,0000000000000000000000000000000000000000000000000000000000000000",
+            "cmd": [sys.executable, "-m", "pytest", "-q", "tests/test_samples.py"],
+            "target": "台账是生成物（手改被检出）",
         },
     ]
 

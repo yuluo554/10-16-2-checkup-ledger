@@ -1,0 +1,36 @@
+{
+  "case_id": "case-010-no-range",
+  "date": "2024-08-09",
+  "expected": [
+    {
+      "canonical_name": "GLU",
+      "default_constraint": "any",
+      "default_range": null,
+      "expected_flag": "not_assessed",
+      "expected_range_source": "none",
+      "printed_range": null,
+      "raw_unit": "mmol/L",
+      "unit": "mmol/L",
+      "value": 5.4
+    },
+    {
+      "canonical_name": "ALT",
+      "default_constraint": "any",
+      "default_range": null,
+      "expected_flag": "not_assessed",
+      "expected_range_source": "none",
+      "printed_range": null,
+      "raw_unit": "IU/L",
+      "unit": "U/L",
+      "value": 14.0
+    }
+  ],
+  "institution": "示例医院C",
+  "sex": "female",
+  "subject": "赵六",
+  "tags": [
+    "source:none",
+    "unit:variant",
+    "domain:血糖"
+  ]
+}

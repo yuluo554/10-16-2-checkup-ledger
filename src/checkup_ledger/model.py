@@ -34,6 +34,22 @@ BOUNDS_OPEN = "open"  # (low, high)
 
 ALL_BOUNDS = (BOUNDS_CLOSED, BOUNDS_OPEN)
 
+# ---- 趋势三态（口径见 data/README.md 第五节第 3 条）----
+TREND_UP = "up"
+TREND_DOWN = "down"
+TREND_FLAT = "flat"
+
+ALL_TRENDS = (TREND_UP, TREND_DOWN, TREND_FLAT)
+
+# ---- 适用域（主体限制）：条目自带的主体约束，不得用 any 掩盖 ----
+# 定义在 model（纯数据层）而非 loader：判定内核不得 import loader（loader 含文件 I/O，
+# 会让"纯函数"门禁失效），但"适用域"又是判定必须遵守的口径，故常量落在两侧都能安全引用处。
+SEX_ANY = "any"
+SEX_MALE = "male"
+SEX_FEMALE = "female"
+
+ALL_SEX = (SEX_ANY, SEX_MALE, SEX_FEMALE)
+
 
 @dataclass(frozen=True)
 class Note:

@@ -3,6 +3,10 @@
 这是"可追溯性"的入口门：光有字段不等于承诺成立——若引擎会把缺来源的条目
 照常加载并参与判定，报告就带着不可核证的结论出去了。判据 = "这条条目如果
 来源丢了，它是**静默照常判**，还是**进不了引擎并显式报出**？"
+
+**区间夹具一律从知识库取**（`helpers.range_dict` / `inline_range`）：测试里手写
+区间数值会让测试成为"区间数值的第二处定义"（零字面量门禁扫 `tests/` 拦这个）。
+测试要验的是门禁行为，用哪条区间无所谓——但数值必须与 YAML 同源。
 """
 
 import os
@@ -10,7 +14,7 @@ import tempfile
 
 import pytest
 
-from helpers import repo_path, run_cli
+from helpers import inline_range, range_dict, repo_path, run_cli, yaml_bounds
 
 from checkup_ledger.loader import (
     STATUS_PENDING,
@@ -23,6 +27,9 @@ from checkup_ledger.loader import (
 )
 
 INDICATORS = repo_path("src", "checkup_ledger", "data", "indicators.yaml")
+
+ALT_UNIT = yaml_bounds("ALT")["unit"]
+HGB_UNIT = yaml_bounds("HGB")["unit"]
 
 
 def _write_yaml(tmp, text):
@@ -38,14 +45,28 @@ indicators:
 """
 
 
+def _raw(name="ALT", source=None, applies=None, **range_kwargs):
+    """构造一条 raw 条目（区间从知识库取，数值不手写）。"""
+    raw = {
+        "canonical_name": name,
+        "unit": yaml_bounds(name)["unit"] if name in ("ALT", "HGB", "TC", "GLU") else "U/L",
+        "default_range": range_dict(name),
+    }
+    if source is not None:
+        raw["source"] = source
+    if applies is not None:
+        raw["applies_to"] = applies
+    return raw
+
+
 # ---------------------------------------------------------------- 门禁：缺来源必拒
 
 
 def test_missing_source_block_is_rejected():
     raw = {
         "canonical_name": "ALT",
-        "unit": "U/L",
-        "default_range": {"low": 9, "high": 40},
+        "unit": ALT_UNIT,
+        "default_range": range_dict("ALT"),
     }
     entry, rejected = gate_entry(raw, 0)
     assert entry is None
@@ -54,24 +75,14 @@ def test_missing_source_block_is_rejected():
 
 
 def test_missing_standard_is_rejected():
-    raw = {
-        "canonical_name": "ALT",
-        "unit": "U/L",
-        "default_range": {"low": 9, "high": 40},
-        "source": {"status": "verified", "evidence": "x"},
-    }
+    raw = _raw(source={"status": "verified", "evidence": "x"})
     entry, rejected = gate_entry(raw, 0)
     assert entry is None
     assert "standard" in rejected.reason
 
 
 def test_invalid_status_is_rejected():
-    raw = {
-        "canonical_name": "ALT",
-        "unit": "U/L",
-        "default_range": {"low": 9, "high": 40},
-        "source": {"standard": "WS/T 404.1-2012", "status": "maybe"},
-    }
+    raw = _raw(source={"standard": "WS/T 404.1-2012", "status": "maybe"})
     entry, rejected = gate_entry(raw, 0)
     assert entry is None
     assert "status" in rejected.reason
@@ -79,19 +90,14 @@ def test_invalid_status_is_rejected():
 
 def test_verified_without_evidence_is_rejected():
     """verified 却没留核对渠道 → 拒绝（"已核对"必须可指认）。"""
-    raw = {
-        "canonical_name": "ALT",
-        "unit": "U/L",
-        "default_range": {"low": 9, "high": 40},
-        "source": {"standard": "WS/T 404.1-2012", "status": "verified", "evidence": "  "},
-    }
+    raw = _raw(source={"standard": "WS/T 404.1-2012", "status": "verified", "evidence": "  "})
     entry, rejected = gate_entry(raw, 0)
     assert entry is None
     assert "evidence" in rejected.reason
 
 
 def test_missing_canonical_name_is_rejected():
-    raw = {"unit": "U/L", "default_range": {"low": 1, "high": 2},
+    raw = {"unit": "U/L", "default_range": range_dict("ALT"),
            "source": {"standard": "X", "status": "pending"}}
     entry, rejected = gate_entry(raw, 0)
     assert entry is None
@@ -100,12 +106,7 @@ def test_missing_canonical_name_is_rejected():
 
 def test_pending_entry_loads_but_cannot_be_default():
     """pending 条目可加载（作展示信息），但**不得**进判定路径。"""
-    raw = {
-        "canonical_name": "ALT",
-        "unit": "U/L",
-        "default_range": {"low": 9, "high": 40},
-        "source": {"standard": "WS/T 404.1-2012", "status": "pending", "evidence": ""},
-    }
+    raw = _raw(source={"standard": "WS/T 404.1-2012", "status": "pending", "evidence": ""})
     entry, rejected = gate_entry(raw, 0)
     assert rejected is None
     assert entry is not None
@@ -114,12 +115,8 @@ def test_pending_entry_loads_but_cannot_be_default():
 
 
 def test_verified_entry_is_usable():
-    raw = {
-        "canonical_name": "ALT",
-        "unit": "U/L",
-        "default_range": {"low": 9, "high": 40},
-        "source": {"standard": "WS/T 404.1-2012", "status": "verified", "evidence": "wsbz 快照 2026-10-20"},
-    }
+    raw = _raw(source={"standard": "WS/T 404.1-2012", "status": "verified",
+                       "evidence": "wsbz 快照 2026-10-20"})
     entry, rejected = gate_entry(raw, 0)
     assert rejected is None
     assert entry.usable_as_default
@@ -127,53 +124,42 @@ def test_verified_entry_is_usable():
 
 def test_verified_defaults_excludes_pending():
     """判定路径唯一入口只含 verified——这是"pending 不进判定"的机制落点。"""
-    raw = {
-        "canonical_name": "ALT",
-        "unit": "U/L",
-        "default_range": {"low": 9, "high": 40},
-        "source": {"standard": "X", "status": "pending"},
-    }
+    raw = _raw(source={"standard": "X", "status": "pending"})
     entry, _ = gate_entry(raw, 0)
     table = IndicatorDict(entries=[entry], disabled=[])
     assert table.verified_defaults() == {}
     assert table.by_canonical("ALT") is entry  # 仍可查询（展示用）
 
 
+def test_verified_defaults_includes_verified():
+    """反向对照：verified 条目**必须**进判定路径（否则门是"一律不进"）。"""
+    raw = _raw(source={"standard": "X", "status": "verified", "evidence": "渠道 2026-10-20"})
+    entry, _ = gate_entry(raw, 0)
+    table = IndicatorDict(entries=[entry], disabled=[])
+    assert "ALT" in table.verified_defaults()
+
+
 # ---------------------------------------------------------------- 区间字段校验
 
 
 def test_inverted_range_is_rejected():
-    raw = {
-        "canonical_name": "ALT",
-        "unit": "U/L",
-        "default_range": {"low": 40, "high": 9},
-        "source": {"standard": "X", "status": "pending"},
-    }
+    raw = _raw(source={"standard": "X", "status": "pending"})
+    raw["default_range"] = range_dict("ALT", invert=True)
     entry, rejected = gate_entry(raw, 0)
     assert entry is None
     assert "高于上限" in rejected.reason
 
 
 def test_bad_bounds_is_rejected():
-    raw = {
-        "canonical_name": "ALT",
-        "unit": "U/L",
-        "default_range": {"low": 9, "high": 40, "bounds": "half-open"},
-        "source": {"standard": "X", "status": "pending"},
-    }
+    raw = _raw(source={"standard": "X", "status": "pending"})
+    raw["default_range"] = range_dict("ALT", bounds="half-open")
     entry, rejected = gate_entry(raw, 0)
     assert entry is None
     assert "bounds" in rejected.reason
 
 
 def test_bad_sex_is_rejected():
-    raw = {
-        "canonical_name": "HGB",
-        "unit": "g/L",
-        "default_range": {"low": 130, "high": 175},
-        "applies_to": {"sex": "unknown"},
-        "source": {"standard": "X", "status": "pending"},
-    }
+    raw = _raw("HGB", source={"standard": "X", "status": "pending"}, applies={"sex": "unknown"})
     entry, rejected = gate_entry(raw, 0)
     assert entry is None
     assert "sex" in rejected.reason
@@ -194,14 +180,23 @@ def test_all_loaded_entries_carry_source():
     table = load_indicators(INDICATORS)
     for entry in table.entries:
         assert entry.source_standard, "条目 %s 缺来源分册" % entry.canonical_name
-        assert entry.status in (STATUS_PENDING, STATUS_VERIFIED), "条目 %s status 非法" % entry.canonical_name
+        assert entry.status in (STATUS_PENDING, STATUS_VERIFIED), (
+            "条目 %s status 非法" % entry.canonical_name
+        )
 
 
 def test_real_knowledge_base_covers_required_domains():
     """覆盖度：五指标域各至少一项（plan/04 覆盖度门槛）。"""
     table = load_indicators(INDICATORS)
     names = {entry.canonical_name for entry in table.entries}
-    required = {"WBC", "HGB", "PLT", "ALT", "AST", "TC", "TG", "CREA", "UA", "GLU"}
+    # 五域代表项（每域至少一个；具体条目以 YAML 为准）
+    required = {
+        "WBC", "RBC", "HGB", "HCT", "PLT",          # 血常规
+        "ALT", "AST", "ALP", "GGT", "TBIL", "TP",   # 肝功能
+        "TC", "TG", "HDL-C", "LDL-C",               # 血脂
+        "CREA", "UREA", "UA",                        # 肾功能
+        "GLU",                                       # 血糖
+    }
     missing = sorted(required - names)
     assert not missing, "知识库缺这些域的代表项：%s" % missing
 
@@ -209,14 +204,14 @@ def test_real_knowledge_base_covers_required_domains():
 def test_duplicate_canonical_name_is_disabled():
     text = BASE_HEADER + """
   - canonical_name: ALT
-    unit: U/L
-    default_range: { low: 9, high: 40 }
+    unit: %s
+    default_range: %s
     source: { standard: X, status: pending }
   - canonical_name: ALT
-    unit: U/L
-    default_range: { low: 9, high: 50 }
+    unit: %s
+    default_range: %s
     source: { standard: X, status: pending }
-"""
+""" % (ALT_UNIT, inline_range("ALT"), ALT_UNIT, inline_range("ALT", high_delta=1))
     with tempfile.TemporaryDirectory() as tmp:
         table = load_indicators(_write_yaml(tmp, text))
     assert len(table.entries) == 1
@@ -252,14 +247,14 @@ def test_disabled_entries_are_reported_not_dropped():
     """被拦条目必须显式进"未启用清单"——静默丢弃 = 报告里看不出缺了什么。"""
     text = BASE_HEADER + """
   - canonical_name: GOOD
-    unit: U/L
-    default_range: { low: 1, high: 2 }
+    unit: %s
+    default_range: %s
     source: { standard: X, status: pending }
   - canonical_name: BAD
-    unit: U/L
-    default_range: { low: 1, high: 2 }
+    unit: %s
+    default_range: %s
     source: { status: pending }
-"""
+""" % (ALT_UNIT, inline_range("ALT"), ALT_UNIT, inline_range("ALT"))
     with tempfile.TemporaryDirectory() as tmp:
         table = load_indicators(_write_yaml(tmp, text))
     assert [e.canonical_name for e in table.entries] == ["GOOD"]

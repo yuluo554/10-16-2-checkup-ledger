@@ -9,6 +9,8 @@ import tempfile
 
 import pytest
 
+from helpers import bounds_pair
+
 from checkup_ledger.model import (
     FLAG_HIGH,
     BOUNDS_CLOSED,
@@ -96,18 +98,19 @@ def test_write_json_double_run_identical():
 def test_render_html_is_byte_identical_across_runs():
     from checkup_ledger.report.html import render_measurements
 
+    low, high = bounds_pair("ALT")
     judged = [
         Judged(
             measurement=Measurement(
                 canonical_name="ALT",
                 raw_name="\u8c37\u4e19\u8f6c\u6c28\u9176",
-                value=47.0,
+                value=high,
                 unit="U/L",
-                ref_range_printed=RefRange(low=9, high=40, bounds=BOUNDS_CLOSED,
+                ref_range_printed=RefRange(low=low, high=high, bounds=BOUNDS_CLOSED,
                                            source=RANGE_SOURCE_REPORT),
             ),
             flag=FLAG_HIGH,
-            range_used=RefRange(low=9, high=40, bounds=BOUNDS_CLOSED, source=RANGE_SOURCE_REPORT),
+            range_used=RefRange(low=low, high=high, bounds=BOUNDS_CLOSED, source=RANGE_SOURCE_REPORT),
             range_source=RANGE_SOURCE_REPORT,
         )
     ]

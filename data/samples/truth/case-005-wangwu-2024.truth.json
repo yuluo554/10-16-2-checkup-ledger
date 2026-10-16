@@ -1,0 +1,29 @@
+{
+  "case_id": "case-005-wangwu-2024",
+  "date": "2024-06-01",
+  "expected": [
+    {
+      "canonical_name": "HGB",
+      "default_constraint": "male",
+      "default_range": {
+        "bounds": "closed",
+        "high": 175.0,
+        "low": 130.0
+      },
+      "expected_flag": "low",
+      "expected_range_source": "builtin_default",
+      "printed_range": null,
+      "raw_unit": "g/L",
+      "unit": "g/L",
+      "value": 127.0
+    }
+  ],
+  "institution": "示例体检中心A",
+  "sex": "male",
+  "subject": "王五",
+  "tags": [
+    "domain:血常规",
+    "sex:applies",
+    "source:builtin_default"
+  ]
+}

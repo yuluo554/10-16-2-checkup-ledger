@@ -1,0 +1,37 @@
+{
+  "case_id": "case-012-lowconf-review",
+  "date": "2025-06-20",
+  "expected": [
+    {
+      "canonical_name": "ALT",
+      "default_constraint": "any",
+      "default_range": null,
+      "expected_flag": "normal",
+      "expected_range_source": "report_printed",
+      "printed_range": {
+        "bounds": "closed",
+        "high": 50.0,
+        "low": 9.0
+      },
+      "raw_unit": "U/L",
+      "unit": "U/L",
+      "value": 32.0
+    }
+  ],
+  "institution": "示例体检中心B",
+  "pending_review_rows": [
+    {
+      "canonical_name": "AST",
+      "confidence": 0.25,
+      "reason": "低置信行未复核，不得落库",
+      "unit": "U/L",
+      "value": 28.0
+    }
+  ],
+  "sex": "female",
+  "subject": "李四",
+  "tags": [
+    "review:pending_not_stored",
+    "domain:肝功能"
+  ]
+}

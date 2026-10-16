@@ -1,0 +1,58 @@
+{
+  "case_id": "case-004-lisi-2024",
+  "date": "2024-05-20",
+  "expected": [
+    {
+      "canonical_name": "HGB",
+      "default_constraint": "male",
+      "default_range": {
+        "bounds": "closed",
+        "high": 175.0,
+        "low": 130.0
+      },
+      "expected_flag": "not_assessed",
+      "expected_range_source": "none",
+      "printed_range": null,
+      "raw_unit": "g/L",
+      "unit": "g/L",
+      "value": 149.0
+    },
+    {
+      "canonical_name": "WBC",
+      "default_constraint": "any",
+      "default_range": null,
+      "expected_flag": "high",
+      "expected_range_source": "report_printed",
+      "printed_range": {
+        "bounds": "closed",
+        "high": 9.5,
+        "low": 3.5
+      },
+      "raw_unit": "10^9/L",
+      "unit": "10^9/L",
+      "value": 9.8
+    },
+    {
+      "canonical_name": "PLT",
+      "default_constraint": "any",
+      "default_range": null,
+      "expected_flag": "normal",
+      "expected_range_source": "report_printed",
+      "printed_range": {
+        "bounds": "closed",
+        "high": 350.0,
+        "low": 125.0
+      },
+      "raw_unit": "10^9/L",
+      "unit": "10^9/L",
+      "value": 126.0
+    }
+  ],
+  "institution": "示例体检中心B",
+  "sex": "female",
+  "subject": "李四",
+  "tags": [
+    "domain:血常规",
+    "sex:applies"
+  ]
+}

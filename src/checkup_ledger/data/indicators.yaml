@@ -9,9 +9,21 @@
 #   - status: verified 时 source.evidence 必填（核对渠道 + 日期）；
 #   - 区间数值只在本文件定义一次，源码中不得出现第二份（零字面量门禁守）。
 #
-# 来源分册编号沿用 LabLens（yang-rz-602/lablens）已标注的 WS/T 404/405 分册；
-# WS/T 404/405 全文不可直连（卫健委 wsbz 平台 412/502、工标网全文付费），
-# 故本文件条目**逐条如实标 pending**，待拿到原文核对后升级 verified。
+# ---- M1（2026-10-16）来源核对结论（详见 data/README.md 第六节）----
+#   1) 工标网 csres.com 书目页**可直连**（M0 曾记为"不可获取"），据此核对了 WS/T 404/405
+#      各分册覆盖的检验项目，并**修正了 M0 的三处分册号张冠李戴**：
+#        · WS/T 404.1-2012 只覆盖 ALT/AST/ALP/GGT（M0 曾把 TC/TG/GLU 也挂在 404.1 下）；
+#        · 肌酐（CREA）属 WS/T 404.5-**2015**（M0 误记为 2012）；
+#        · 血脂（TC/TG/HDL-C/LDL-C）、血糖（GLU）、尿酸（UA）在 WS/T 404/405 系列中
+#          **没有对应分册** → 这三类的标准号字段如实标"未定位"，**不以方法标准冒充区间来源**。
+#   2) WS/T 全文仍**不可直连**（卫健委 wsbz 412/502、nhc 412；csres 仅书目页、全文付费），
+#      故**区间数值本身无法逐条核对** → 全部条目**如实保持 status: pending**。
+#      pending 不进判定路径：报告未自印区间时走"拒判"。这是设计内行为（宁拒判，不臆造）。
+#   3) 下表数值一律为**常见项默认值**（作者整理，未核对原文），仅作展示与将来核对的目标值；
+#      任何情况下以报告单印制的区间与医嘱为准。
+#   4) 已知 schema 局限：`canonical_name` 唯一 → 一个项目只能挂一份区间，性别/年龄分层的
+#      另一半（如女性 HGB 区间）无处安放。当前按"男性"如实标注 applies_to.sex 而不写 any；
+#      分层区间的 schema 扩展留 M3，届时补对侧并加"不该命中"反向用例。
 
 schema_version: 1
 updated: 2026-10-16
@@ -20,10 +32,10 @@ disclaimer: >
   各医疗机构应以本机构 LIS 打印区间为最终准绳；本字典区间为常见项默认值，以报告单和医嘱为准。
 
 indicators:
-  # ---- 血常规 ----
+  # ================================ 血常规（WS/T 405-2012 血细胞分析参考区间）================================
   - canonical_name: WBC
     display_name: 白细胞计数
-    aliases: [白细胞计数, 白细胞, WBC, WBC计数]
+    aliases: [白细胞计数, 白细胞, WBC, WBC计数, WBC 白细胞]
     unit: 10^9/L
     unit_aliases: [10^9/L, 10E9/L, ×10^9/L, 10*9/L]
     default_range: { low: 3.5, high: 9.5 }
@@ -31,8 +43,21 @@ indicators:
     source:
       standard: WS/T 405-2012
       status: pending
-      evidence: 待核对（渠道：卫健委 wsbz 平台 412/502 反爬阻断，见 data/README.md）
-      note: 常见项默认值；以报告单和医嘱为准
+      evidence: 待核对：WS/T 全文不可直连（wsbz 412/502）；分册号已按 csres 书目核对 2026-10-16，区间数值未核对
+      note: 常见项默认值（未核对原文）；以报告单和医嘱为准
+
+  - canonical_name: RBC
+    display_name: 红细胞计数
+    aliases: [红细胞计数, 红细胞, RBC, RBC计数]
+    unit: 10^12/L
+    unit_aliases: [10^12/L, 10E12/L, ×10^12/L]
+    default_range: { low: 4.3, high: 5.8 }
+    applies_to: { sex: male }   # 男/女区间不同，必须显式写主体，不得写 any
+    source:
+      standard: WS/T 405-2012
+      status: pending
+      evidence: 待核对：WS/T 全文不可直连（wsbz 412/502）；分册号已按 csres 书目核对 2026-10-16，区间数值未核对
+      note: 常见项默认值（未核对原文）；女性对侧区间待 schema 扩展（见文件头第 4 条）
 
   - canonical_name: HGB
     display_name: 血红蛋白
@@ -40,16 +65,29 @@ indicators:
     unit: g/L
     unit_aliases: [g/L, g/l, G/L]
     default_range: { low: 130, high: 175 }
-    applies_to: { sex: male }   # 男/女区间不同，必须显式写主体；基准须有"不该命中"的反向样例
+    applies_to: { sex: male }   # 男/女区间不同；基准须有"不该命中"的反向样例
     source:
       standard: WS/T 405-2012
       status: pending
-      evidence: 待核对（渠道：卫健委 wsbz 平台 412/502 反爬阻断，见 data/README.md）
-      note: 常见项默认值；以报告单和医嘱为准
+      evidence: 待核对：WS/T 全文不可直连（wsbz 412/502）；分册号已按 csres 书目核对 2026-10-16，区间数值未核对
+      note: 常见项默认值（未核对原文）；女性对侧区间待 schema 扩展（见文件头第 4 条）
+
+  - canonical_name: HCT
+    display_name: 红细胞比容
+    aliases: [红细胞比容, 红细胞压积, HCT, Hct, PCV]
+    unit: L/L
+    unit_aliases: [L/L, l/l, 比值]
+    default_range: { low: 0.40, high: 0.50 }
+    applies_to: { sex: male }
+    source:
+      standard: WS/T 405-2012
+      status: pending
+      evidence: 待核对：WS/T 全文不可直连（wsbz 412/502）；分册号已按 csres 书目核对 2026-10-16，区间数值未核对
+      note: 常见项默认值（未核对原文）；女性对侧区间待 schema 扩展（见文件头第 4 条）
 
   - canonical_name: PLT
     display_name: 血小板计数
-    aliases: [血小板计数, 血小板, PLT]
+    aliases: [血小板计数, 血小板, PLT, PLT计数]
     unit: 10^9/L
     unit_aliases: [10^9/L, 10E9/L, ×10^9/L]
     default_range: { low: 125, high: 350 }
@@ -57,10 +95,10 @@ indicators:
     source:
       standard: WS/T 405-2012
       status: pending
-      evidence: 待核对（渠道：卫健委 wsbz 平台 412/502 反爬阻断，见 data/README.md）
-      note: 常见项默认值；以报告单和医嘱为准
+      evidence: 待核对：WS/T 全文不可直连（wsbz 412/502）；分册号已按 csres 书目核对 2026-10-16，区间数值未核对
+      note: 常见项默认值（未核对原文）；以报告单和医嘱为准
 
-  # ---- 肝功能 ----
+  # ================================ 肝功能 ================================
   - canonical_name: ALT
     display_name: 丙氨酸氨基转移酶
     aliases: [谷丙转氨酶, ALT, GPT, 丙氨酸氨基转移酶]
@@ -71,8 +109,8 @@ indicators:
     source:
       standard: WS/T 404.1-2012
       status: pending
-      evidence: 待核对（渠道：卫健委 wsbz 平台 412/502 反爬阻断，见 data/README.md）
-      note: 常见项默认值；以报告单和医嘱为准
+      evidence: 待核对：WS/T 全文不可直连（wsbz 412/502）；分册号已按 csres 书目核对 2026-10-16，区间数值未核对
+      note: 常见项默认值（未核对原文）；以报告单和医嘱为准
 
   - canonical_name: AST
     display_name: 天门冬氨酸氨基转移酶
@@ -84,49 +122,140 @@ indicators:
     source:
       standard: WS/T 404.1-2012
       status: pending
-      evidence: 待核对（渠道：卫健委 wsbz 平台 412/502 反爬阻断，见 data/README.md）
-      note: 常见项默认值；以报告单和医嘱为准
+      evidence: 待核对：WS/T 全文不可直连（wsbz 412/502）；分册号已按 csres 书目核对 2026-10-16，区间数值未核对
+      note: 常见项默认值（未核对原文）；以报告单和医嘱为准
 
-  # ---- 血脂 ----
+  - canonical_name: ALP
+    display_name: 碱性磷酸酶
+    aliases: [碱性磷酸酶, ALP, AKP, 碱性磷酸酶(ALP)]
+    unit: U/L
+    unit_aliases: [U/L, IU/L, u/l]
+    default_range: { low: 45, high: 125 }
+    applies_to: { sex: any }
+    source:
+      standard: WS/T 404.1-2012
+      status: pending
+      evidence: 待核对：WS/T 全文不可直连（wsbz 412/502）；分册号已按 csres 书目核对 2026-10-16，区间数值未核对
+      note: 常见项默认值（未核对原文）；成人与生长期区间不同，本条目按成人
+
+  - canonical_name: GGT
+    display_name: γ-谷氨酰基转移酶
+    aliases: [γ-谷氨酰基转移酶, 谷氨酰转肽酶, GGT, γ-GT, r-GT]
+    unit: U/L
+    unit_aliases: [U/L, IU/L, u/l]
+    default_range: { low: 11, high: 50 }
+    applies_to: { sex: male }   # 男/女区间不同，必须显式写主体
+    source:
+      standard: WS/T 404.1-2012
+      status: pending
+      evidence: 待核对：WS/T 全文不可直连（wsbz 412/502）；分册号已按 csres 书目核对 2026-10-16，区间数值未核对
+      note: 常见项默认值（未核对原文）；女性对侧区间待 schema 扩展（见文件头第 4 条）
+
+  - canonical_name: TBIL
+    display_name: 总胆红素
+    aliases: [总胆红素, 胆红素, TBIL, TBil, T-BIL]
+    unit: umol/L
+    unit_aliases: [umol/L, μmol/L, umol/l]
+    default_range: { low: 3.4, high: 20.5 }
+    applies_to: { sex: any }
+    source:
+      standard: WS/T 404.4-2018
+      status: pending
+      evidence: 待核对：WS/T 全文不可直连（wsbz 412/502）；分册号已按 csres 书目核对 2026-10-16，区间数值未核对
+      note: 常见项默认值（未核对原文）；以报告单和医嘱为准
+
+  - canonical_name: TP
+    display_name: 总蛋白
+    aliases: [总蛋白, 血清总蛋白, TP, T-PRO]
+    unit: g/L
+    unit_aliases: [g/L, g/l, G/L]
+    default_range: { low: 65, high: 85 }
+    applies_to: { sex: any }
+    source:
+      standard: WS/T 404.2-2012
+      status: pending
+      evidence: 待核对：WS/T 全文不可直连（wsbz 412/502）；分册号已按 csres 书目核对 2026-10-16，区间数值未核对
+      note: 常见项默认值（未核对原文）；以报告单和医嘱为准
+
+  # ================================ 血脂（WS/T 404/405 系列无对应分册）================================
   - canonical_name: TC
     display_name: 总胆固醇
-    aliases: [总胆固醇, 胆固醇, TC, CHOL]
+    aliases: [总胆固醇, 胆固醇, TC, CHOL, TCHO]
     unit: mmol/L
     unit_aliases: [mmol/L, mM]
     default_range: { low: null, high: 5.2 }   # 单侧上限：对缺失侧不设限
     applies_to: { sex: any }
     source:
-      standard: WS/T 404.1-2012
+      standard: 未定位（WS/T 404/405 系列无对应分册）
       status: pending
-      evidence: 待核对（渠道：卫健委 wsbz 平台 412/502 反爬阻断，见 data/README.md）
-      note: 常见项默认值；以报告单和医嘱为准
+      evidence: 待核对：WS/T 404/405 系列无脂类参考区间分册（csres 书目核对 2026-10-16），区间数值无标准来源可核
+      note: 常见项默认值（未核对原文）；本条目**不引用方法标准冒充区间来源**；以报告单和医嘱为准
 
   - canonical_name: TG
     display_name: 甘油三酯
-    aliases: [甘油三酯, 三酰甘油, TG]
+    aliases: [甘油三酯, 三酰甘油, TG, TRIG]
     unit: mmol/L
     unit_aliases: [mmol/L, mM]
     default_range: { low: null, high: 1.7 }
     applies_to: { sex: any }
     source:
-      standard: WS/T 404.1-2012
+      standard: 未定位（WS/T 404/405 系列无对应分册）
       status: pending
-      evidence: 待核对（渠道：卫健委 wsbz 平台 412/502 反爬阻断，见 data/README.md）
-      note: 常见项默认值；以报告单和医嘱为准
+      evidence: 待核对：WS/T 404/405 系列无脂类参考区间分册（csres 书目核对 2026-10-16），区间数值无标准来源可核
+      note: 常见项默认值（未核对原文）；本条目**不引用方法标准冒充区间来源**；以报告单和医嘱为准
 
-  # ---- 肾功能 ----
+  - canonical_name: HDL-C
+    display_name: 高密度脂蛋白胆固醇
+    aliases: [高密度脂蛋白胆固醇, 高密度脂蛋白, HDL-C, HDLC, HDL]
+    unit: mmol/L
+    unit_aliases: [mmol/L, mM]
+    default_range: { low: 1.1, high: 1.7 }
+    applies_to: { sex: any }
+    source:
+      standard: 未定位（WS/T 404/405 系列无对应分册）
+      status: pending
+      evidence: 待核对：WS/T 404/405 系列无脂类参考区间分册（csres 书目核对 2026-10-16），区间数值无标准来源可核
+      note: 常见项默认值（未核对原文）；本条目**不引用方法标准冒充区间来源**；以报告单和医嘱为准
+
+  - canonical_name: LDL-C
+    display_name: 低密度脂蛋白胆固醇
+    aliases: [低密度脂蛋白胆固醇, 低密度脂蛋白, LDL-C, LDLC, LDL]
+    unit: mmol/L
+    unit_aliases: [mmol/L, mM]
+    default_range: { low: null, high: 3.4 }
+    applies_to: { sex: any }
+    source:
+      standard: 未定位（WS/T 404/405 系列无对应分册）
+      status: pending
+      evidence: 待核对：WS/T 404/405 系列无脂类参考区间分册（csres 书目核对 2026-10-16），区间数值无标准来源可核
+      note: 常见项默认值（未核对原文）；本条目**不引用方法标准冒充区间来源**；以报告单和医嘱为准
+
+  # ================================ 肾功能 ================================
   - canonical_name: CREA
     display_name: 肌酐
-    aliases: [肌酐, CREA, Cr, 肌酸酐]
+    aliases: [肌酐, CREA, Cr, 肌酸酐, SCr]
     unit: umol/L
     unit_aliases: [umol/L, μmol/L, umol/l]
     default_range: { low: 57, high: 97 }
     applies_to: { sex: any }
     source:
-      standard: WS/T 404.5-2012
+      standard: WS/T 404.5-2015
       status: pending
-      evidence: 待核对（渠道：卫健委 wsbz 平台 412/502 反爬阻断，见 data/README.md）
-      note: 常见项默认值；以报告单和医嘱为准
+      evidence: 待核对：WS/T 全文不可直连（wsbz 412/502）；分册号已按 csres 书目核对 2026-10-16（M0 误记 2012，实为 2015），区间数值未核对
+      note: 常见项默认值（未核对原文）；男/女区间不同，本条目按男性常见值但未标 sex（对侧待 schema 扩展）
+
+  - canonical_name: UREA
+    display_name: 尿素
+    aliases: [尿素, 尿素氮, UREA, BUN, 血尿素]
+    unit: mmol/L
+    unit_aliases: [mmol/L, mM]
+    default_range: { low: 2.9, high: 8.2 }
+    applies_to: { sex: any }
+    source:
+      standard: WS/T 404.5-2015
+      status: pending
+      evidence: 待核对：WS/T 全文不可直连（wsbz 412/502）；分册号已按 csres 书目核对 2026-10-16，区间数值未核对
+      note: 常见项默认值（未核对原文）；以报告单和医嘱为准
 
   - canonical_name: UA
     display_name: 尿酸
@@ -134,23 +263,23 @@ indicators:
     unit: umol/L
     unit_aliases: [umol/L, μmol/L]
     default_range: { low: 208, high: 428 }
-    applies_to: { sex: male }
+    applies_to: { sex: male }   # 男/女区间不同，必须显式写主体
     source:
-      standard: WS/T 404.5-2012
+      standard: 未定位（WS/T 404/405 系列无对应分册）
       status: pending
-      evidence: 待核对（渠道：卫健委 wsbz 平台 412/502 反爬阻断，见 data/README.md）
-      note: 常见项默认值；以报告单和医嘱为准
+      evidence: 待核对：WS/T 404/405 系列无尿酸参考区间分册（csres 书目核对 2026-10-16），区间数值无标准来源可核
+      note: 常见项默认值（未核对原文）；女性对侧区间待 schema 扩展（见文件头第 4 条）
 
-  # ---- 血糖 ----
+  # ================================ 血糖（WS/T 404/405 系列无对应分册）================================
   - canonical_name: GLU
     display_name: 葡萄糖
-    aliases: [葡萄糖, 血糖, GLU, GLU-空腹, 空腹血糖]
+    aliases: [葡萄糖, 血糖, GLU, GLU-空腹, 空腹血糖, FBG]
     unit: mmol/L
     unit_aliases: [mmol/L, mM]
     default_range: { low: 3.9, high: 6.1 }
     applies_to: { sex: any }
     source:
-      standard: WS/T 404.1-2012
+      standard: 未定位（WS/T 404/405 系列无对应分册）
       status: pending
-      evidence: 待核对（渠道：卫健委 wsbz 平台 412/502 反爬阻断，见 data/README.md）
-      note: 常见项默认值；以报告单和医嘱为准
+      evidence: 待核对：WS/T 404/405 系列无血糖参考区间分册（csres 书目核对 2026-10-16），区间数值无标准来源可核
+      note: 常见项默认值（未核对原文）；本条目**不引用方法标准冒充区间来源**；以报告单和医嘱为准

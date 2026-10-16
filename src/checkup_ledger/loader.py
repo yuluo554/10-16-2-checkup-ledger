@@ -16,15 +16,14 @@
 import os
 from typing import Dict, List, Optional, Tuple
 
-from checkup_ledger.model import BOUNDS_CLOSED, ALL_BOUNDS, RefRange
+from checkup_ledger.model import ALL_BOUNDS, ALL_SEX, BOUNDS_CLOSED, SEX_ANY, RefRange
 from checkup_ledger.serialize import write_atomic  # noqa: F401  (写盘单点：汇总产物经此写出)
 
 STATUS_PENDING = "pending"
 STATUS_VERIFIED = "verified"
 ALL_STATUS = (STATUS_PENDING, STATUS_VERIFIED)
 
-SEX_ANY = "any"
-ALL_SEX = (SEX_ANY, "male", "female")
+# SEX_ANY / ALL_SEX 由 model 定义并在此重导出（同源，避免"主体限制"出现两份口径）
 
 
 class KnowledgeError(RuntimeError):

@@ -1,0 +1,32 @@
+{
+  "case_id": "case-009-printed-overrides-default",
+  "date": "2024-08-08",
+  "expected": [
+    {
+      "canonical_name": "CREA",
+      "default_constraint": "any",
+      "default_range": {
+        "bounds": "closed",
+        "high": 90.0,
+        "low": 57.0
+      },
+      "expected_flag": "normal",
+      "expected_range_source": "report_printed",
+      "printed_range": {
+        "bounds": "closed",
+        "high": 97.0,
+        "low": 57.0
+      },
+      "raw_unit": "umol/L",
+      "unit": "umol/L",
+      "value": 92.0
+    }
+  ],
+  "institution": "示例医院C",
+  "sex": "female",
+  "subject": "赵六",
+  "tags": [
+    "priority:printed_overrides_default",
+    "domain:肾功能"
+  ]
+}

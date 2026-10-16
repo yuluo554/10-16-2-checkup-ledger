@@ -1,0 +1,43 @@
+{
+  "case_id": "case-001-zhangsan-2023",
+  "date": "2023-03-11",
+  "expected": [
+    {
+      "canonical_name": "ALT",
+      "default_constraint": "any",
+      "default_range": null,
+      "expected_flag": "high",
+      "expected_range_source": "report_printed",
+      "printed_range": {
+        "bounds": "closed",
+        "high": 40.0,
+        "low": 9.0
+      },
+      "raw_unit": "U/L",
+      "unit": "U/L",
+      "value": 43.0
+    },
+    {
+      "canonical_name": "AST",
+      "default_constraint": "any",
+      "default_range": null,
+      "expected_flag": "normal",
+      "expected_range_source": "report_printed",
+      "printed_range": {
+        "bounds": "closed",
+        "high": 40.0,
+        "low": 15.0
+      },
+      "raw_unit": "U/L",
+      "unit": "U/L",
+      "value": 37.0
+    }
+  ],
+  "institution": "示例体检中心A",
+  "sex": "male",
+  "subject": "张三",
+  "tags": [
+    "domain:肝功能",
+    "source:report_printed"
+  ]
+}

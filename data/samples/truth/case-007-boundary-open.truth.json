@@ -1,0 +1,29 @@
+{
+  "case_id": "case-007-boundary-open",
+  "date": "2024-07-16",
+  "expected": [
+    {
+      "canonical_name": "TG",
+      "default_constraint": "any",
+      "default_range": null,
+      "expected_flag": "high",
+      "expected_range_source": "report_printed",
+      "printed_range": {
+        "bounds": "open",
+        "high": 1.7,
+        "low": null
+      },
+      "raw_unit": "mmol/L",
+      "unit": "mmol/L",
+      "value": 1.7
+    }
+  ],
+  "institution": "示例体检中心B",
+  "sex": "male",
+  "subject": "王五",
+  "tags": [
+    "boundary:threshold_exact",
+    "bounds:open",
+    "domain:血脂"
+  ]
+}

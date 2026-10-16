@@ -1,0 +1,68 @@
+{
+  "case_id": "case-011-lisi-2025",
+  "date": "2025-05-20",
+  "expected": [
+    {
+      "canonical_name": "WBC",
+      "default_constraint": "any",
+      "default_range": null,
+      "expected_flag": "normal",
+      "expected_range_source": "report_printed",
+      "printed_range": {
+        "bounds": "closed",
+        "high": 9.5,
+        "low": 3.5
+      },
+      "raw_unit": "10^9/L",
+      "unit": "10^9/L",
+      "value": 8.700000000000001
+    },
+    {
+      "canonical_name": "PLT",
+      "default_constraint": "any",
+      "default_range": null,
+      "expected_flag": "normal",
+      "expected_range_source": "report_printed",
+      "printed_range": {
+        "bounds": "closed",
+        "high": 350.0,
+        "low": 125.0
+      },
+      "raw_unit": "10^9/L",
+      "unit": "10^9/L",
+      "value": 349.0
+    }
+  ],
+  "expected_trends": [
+    {
+      "canonical_name": "PLT",
+      "expected_delta": 223.0,
+      "expected_direction": "up",
+      "from_case": "case-004-lisi-2024",
+      "from_date": "2024-05-20",
+      "from_value": 126.0,
+      "subject": "李四",
+      "to_case": "case-011-lisi-2025",
+      "to_date": "2025-05-20",
+      "to_value": 349.0
+    },
+    {
+      "canonical_name": "WBC",
+      "expected_delta": -1.0999999999999996,
+      "expected_direction": "down",
+      "from_case": "case-004-lisi-2024",
+      "from_date": "2024-05-20",
+      "from_value": 9.8,
+      "subject": "李四",
+      "to_case": "case-011-lisi-2025",
+      "to_date": "2025-05-20",
+      "to_value": 8.700000000000001
+    }
+  ],
+  "institution": "示例体检中心B",
+  "sex": "female",
+  "subject": "李四",
+  "tags": [
+    "domain:血常规"
+  ]
+}

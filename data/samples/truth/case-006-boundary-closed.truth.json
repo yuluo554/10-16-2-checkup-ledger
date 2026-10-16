@@ -1,0 +1,29 @@
+{
+  "case_id": "case-006-boundary-closed",
+  "date": "2024-07-15",
+  "expected": [
+    {
+      "canonical_name": "TC",
+      "default_constraint": "any",
+      "default_range": null,
+      "expected_flag": "normal",
+      "expected_range_source": "report_printed",
+      "printed_range": {
+        "bounds": "closed",
+        "high": 5.2,
+        "low": null
+      },
+      "raw_unit": "mmol/L",
+      "unit": "mmol/L",
+      "value": 5.2
+    }
+  ],
+  "institution": "示例体检中心B",
+  "sex": "male",
+  "subject": "王五",
+  "tags": [
+    "boundary:threshold_exact",
+    "bounds:closed",
+    "domain:血脂"
+  ]
+}

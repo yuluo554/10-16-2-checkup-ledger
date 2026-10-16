@@ -1,0 +1,69 @@
+{
+  "case_id": "case-003-zhangsan-2025",
+  "date": "2025-03-11",
+  "expected": [
+    {
+      "canonical_name": "ALT",
+      "default_constraint": "any",
+      "default_range": null,
+      "expected_flag": "normal",
+      "expected_range_source": "report_printed",
+      "printed_range": {
+        "bounds": "closed",
+        "high": 40.0,
+        "low": 9.0
+      },
+      "raw_unit": "U/L",
+      "unit": "U/L",
+      "value": 13.0
+    },
+    {
+      "canonical_name": "AST",
+      "default_constraint": "any",
+      "default_range": null,
+      "expected_flag": "normal",
+      "expected_range_source": "report_printed",
+      "printed_range": {
+        "bounds": "closed",
+        "high": 40.0,
+        "low": 15.0
+      },
+      "raw_unit": "U/L",
+      "unit": "U/L",
+      "value": 28.0
+    }
+  ],
+  "expected_trends": [
+    {
+      "canonical_name": "ALT",
+      "expected_delta": 0.0,
+      "expected_direction": "flat",
+      "from_case": "case-002-zhangsan-2024",
+      "from_date": "2024-03-11",
+      "from_value": 13.0,
+      "subject": "张三",
+      "to_case": "case-003-zhangsan-2025",
+      "to_date": "2025-03-11",
+      "to_value": 13.0
+    },
+    {
+      "canonical_name": "AST",
+      "expected_delta": 0.0,
+      "expected_direction": "flat",
+      "from_case": "case-002-zhangsan-2024",
+      "from_date": "2024-03-11",
+      "from_value": 28.0,
+      "subject": "张三",
+      "to_case": "case-003-zhangsan-2025",
+      "to_date": "2025-03-11",
+      "to_value": 28.0
+    }
+  ],
+  "institution": "示例医院C",
+  "sex": "male",
+  "subject": "张三",
+  "tags": [
+    "domain:肝功能",
+    "trend:flat"
+  ]
+}

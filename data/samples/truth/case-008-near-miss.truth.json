@@ -1,0 +1,57 @@
+{
+  "case_id": "case-008-near-miss",
+  "date": "2024-07-17",
+  "expected": [
+    {
+      "canonical_name": "TC",
+      "default_constraint": "any",
+      "default_range": null,
+      "expected_flag": "normal",
+      "expected_range_source": "report_printed",
+      "printed_range": {
+        "bounds": "closed",
+        "high": 5.2,
+        "low": null
+      },
+      "raw_unit": "mmol/L",
+      "unit": "mmol/L",
+      "value": 5.1000000000000005
+    },
+    {
+      "canonical_name": "HDL-C",
+      "default_constraint": "any",
+      "default_range": null,
+      "expected_flag": "normal",
+      "expected_range_source": "report_printed",
+      "printed_range": {
+        "bounds": "closed",
+        "high": 1.7,
+        "low": 1.1
+      },
+      "raw_unit": "mmol/L",
+      "unit": "mmol/L",
+      "value": 1.2000000000000002
+    }
+  ],
+  "expected_trends": [
+    {
+      "canonical_name": "TC",
+      "expected_delta": -0.09999999999999964,
+      "expected_direction": "down",
+      "from_case": "case-006-boundary-closed",
+      "from_date": "2024-07-15",
+      "from_value": 5.2,
+      "subject": "王五",
+      "to_case": "case-008-near-miss",
+      "to_date": "2024-07-17",
+      "to_value": 5.1000000000000005
+    }
+  ],
+  "institution": "示例体检中心B",
+  "sex": "male",
+  "subject": "王五",
+  "tags": [
+    "boundary:near_miss",
+    "domain:血脂"
+  ]
+}

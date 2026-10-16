@@ -104,3 +104,101 @@ def iter_python_files():
     for rel in tracked_files():
         if rel.endswith(".py") and rel.split("/")[0] in ("src", "tools", "tests"):
             yield rel
+
+
+# ---------------------------------------------------------------- 区间夹具（唯一来源 = 知识库）
+
+_INDICATORS_YAML = os.path.join(SRC_ROOT, "checkup_ledger", "data", "indicators.yaml")
+
+
+def yaml_bounds(canonical_name):
+    """从内置知识库取某条目的区间（**测试夹具的唯一来源**）。
+
+    测试里凡是需要"一个区间"的地方都从这里取。否则测试就成了区间数值的
+    **第二处定义**：改 YAML 改不动它们，断言退化成对陈年数字的自我确认
+    （零字面量门禁扫 tests/ 正是为了拦这个）。
+    """
+    import yaml
+
+    with open(_INDICATORS_YAML, "r", encoding="utf-8") as handle:
+        root = yaml.safe_load(handle)
+    for entry in root["indicators"]:
+        if entry["canonical_name"] == canonical_name:
+            rng = entry.get("default_range") or {}
+            applies = entry.get("applies_to") or {}
+            return {
+                "low": rng.get("low"),
+                "high": rng.get("high"),
+                "bounds": rng.get("bounds", "closed"),
+                "unit": entry["unit"],
+                "sex": applies.get("sex", "any"),
+            }
+    raise KeyError("知识库无此条目：%s" % canonical_name)
+
+
+def bounds_pair(canonical_name):
+    """某条目的 (low, high) 数值对。"""
+    spec = yaml_bounds(canonical_name)
+    return spec["low"], spec["high"]
+
+
+def step_of(value):
+    """该数值的步长 = 10^(-小数位)，由 YAML 的写法实算（不写精度常数）。
+
+    整数端点的步长为 1；一位小数的端点为 0.1；以此类推。用它构造"刚过边界"
+    的探针值，避免在测试里写死小数。
+    """
+    text = repr(float(value))
+    if "." not in text:
+        return 1.0
+    fraction = text.split(".", 1)[1].rstrip("0")
+    return float(10 ** -len(fraction)) if fraction else 1.0
+
+
+def inline_range(canonical_name, low_delta=0, high_delta=0, bounds=None, invert=False):
+    """把某条目的区间渲染成 YAML 片段（供 loader 类测试拼测试用 YAML）。
+
+    测试要验的是 loader 的门禁行为，用哪条区间无所谓——但**不许手写数值**，
+    否则那又是一处"改 YAML 改不动"的第二定义。
+    """
+    spec = _range_spec(canonical_name, low_delta, high_delta, bounds, invert)
+    parts = []
+    if spec["low"] is not None:
+        parts.append("low: %s" % _num(spec["low"]))
+    if spec["high"] is not None:
+        parts.append("high: %s" % _num(spec["high"]))
+    if spec.get("bounds") is not None:
+        parts.append("bounds: %s" % spec["bounds"])
+    return "{ %s }" % ", ".join(parts)
+
+
+def range_dict(canonical_name, low_delta=0, high_delta=0, bounds=None, invert=False):
+    """把某条目的区间渲染成 dict（供 `gate_entry` 类测试直接构造 raw 条目）。
+
+    `bounds` 为 None 时**不写这个键**——写 `bounds: null` 会被 loader 判成
+    "非法边界语义"（正确行为），但那不是本夹具想测的东西。
+    """
+    spec = _range_spec(canonical_name, low_delta, high_delta, bounds, invert)
+    out = {"low": spec["low"], "high": spec["high"]}
+    if spec.get("bounds") is not None:
+        out["bounds"] = spec["bounds"]
+    return out
+
+
+def _range_spec(canonical_name, low_delta, high_delta, bounds, invert):
+    spec = yaml_bounds(canonical_name)
+    low, high = spec["low"], spec["high"]
+    if low is not None and low_delta:
+        low = low + low_delta
+    if high is not None and high_delta:
+        high = high + high_delta
+    if invert:
+        low, high = high, low
+    out = {"low": low, "high": high, "bounds": bounds}
+    return out
+
+
+def _num(value):
+    if float(value).is_integer():
+        return str(int(value))
+    return repr(value)

@@ -118,8 +118,11 @@ def test_face2_every_subcommand_is_documented():
     """已实现的子命令都要在 README 出现。
 
     例外：**未就绪**的模块命令（走 exit 4 契约）在 README 里以"里程碑状态"叙述，
-    不要求逐条列在命令速查里——但必须在 README 的里程碑/状态节被点名，
+    不要求逐条列在命令速查里——但必须在 README 的**里程碑/状态节**被点名，
     否则用户看到 `--help` 里有它却不知其状态。
+
+    判据用"README 是否交代了里程碑推进"（状态节存在），而不是钉死某个里程碑名
+    （钉死"M0 骨架"会让每次里程碑回写都误伤这条门）。
     """
     readme = read_text("README.md")
     parser = build_parser()
@@ -128,11 +131,14 @@ def test_face2_every_subcommand_is_documented():
 
     from checkup_ledger.cli import _NOT_READY_MODULES
 
+    # README 必须有"项目状态"节并说明按里程碑推进（未就绪命令的交代处）
+    has_status_section = "项目状态" in readme and "里程碑" in readme
+
     missing = []
     for name in subs:
         if name in readme:
             continue
-        if name in _NOT_READY_MODULES and "M0 骨架" in readme:
+        if name in _NOT_READY_MODULES and has_status_section:
             continue  # 未就绪命令由里程碑状态节统一交代
         missing.append(name)
     assert not missing, "已实现但 README 未提及的子命令：%s" % missing
@@ -312,6 +318,8 @@ def test_face4_dev_extra_covers_test_time_deps():
         for name in _collect_imports(repo_path(rel)):
             if name in STDLIB_FROZEN or name in (PACKAGE_ROOT, "helpers", "tools"):
                 continue
+            if name == "yaml":
+                continue  # 核心依赖（dependencies 已声明），非测试期专有
             third_party_in_tests.add(name)
     missing = sorted(name for name in third_party_in_tests if name not in dev_imports)
     assert not missing, "测试用的第三方库未在 dev extras 中声明：%s" % missing

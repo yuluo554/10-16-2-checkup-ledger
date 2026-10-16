@@ -150,6 +150,36 @@ def load_suites(path=None) -> "tuple":
     return order, table
 
 
+def _all_not_enabled(order, only) -> dict:
+    """整层未启用：`only` 选了别的层的套件名。不计入通过数。"""
+    return {
+        "layer": "rules",
+        "passed": False,
+        "total": 0,
+        "passed_count": 0,
+        "probe_fault": None,
+        "suites": [
+            {
+                "name": name,
+                "not_enabled": True,
+                "notes": "本套件未启用（--only 选择了 %s，属另一层）；未启用不等于通过" % only,
+                "total": 0,
+                "passed_count": 0,
+                "passed": False,
+                "failures": [],
+            }
+            for name in order
+        ],
+        "notes": "本层未启用（--only 选择了另一层的套件）。",
+    }
+
+
+def suite_names(cases_file=None) -> list:
+    """本层（规则驱动层）的套件名列表——供分层调度器做 `--only` 全局校验。"""
+    order, _table = load_suites(cases_file)
+    return list(order)
+
+
 # ---- 探活：注入缺陷的钩子 ----
 # 让"注入后基准必须报未达标"成为可执行事实，而不是一句声明。
 # 缺陷只污染 flag、不改 range_source——若基准只比对来源而放过 flag，
@@ -185,17 +215,22 @@ def _run_case(case: Case, fault: Optional[str] = None) -> List[str]:
     return failures
 
 
-def run_bench(only: Optional[str] = None, probe_fault: bool = False, cases_file=None) -> dict:
+def run_bench(only: Optional[str] = None, probe_fault: bool = False, cases_file=None,
+              strict: bool = True) -> dict:
     """跑基准。返回机读报告（可写 JSON）。
 
     - `only` 未命中的套件标 `not_enabled`（**不计入通过数**）；
-    - `only` 给了一个不存在的套件名 → ValueError（用法错误，CLI 转 exit 2）；
+    - `only` 给了一个不存在的套件名 → `strict=True` 时 ValueError（用法错误，CLI 转
+      exit 2）；`strict=False` 时本层整体标 `not_enabled`（该套件名属于另一层，
+      由分层调度器做全局校验并负责报错）；
     - `probe_fault=True` → 注入已知缺陷，**基准必须报未达标**。
     """
     order, table = load_suites(cases_file)
 
     if only is not None and only not in table:
-        raise ValueError("未知名套件：%r（已知：%s）" % (only, "、".join(order)))
+        if strict:
+            raise ValueError("未知名套件：%r（已知：%s）" % (only, "、".join(order)))
+        return _all_not_enabled(order, only)
 
     fault = PROBE_FAULT_KIND if probe_fault else None
     suites = []

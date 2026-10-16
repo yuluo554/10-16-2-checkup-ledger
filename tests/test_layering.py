@@ -12,7 +12,7 @@ import os
 
 import pytest
 
-from helpers import iter_python_files, read_text, repo_path
+from helpers import bounds_pair, iter_python_files, read_text, repo_path
 
 FORBIDDEN_IO_MODULES = (
     "io", "os", "pathlib", "glob", "shutil", "socket", "urllib", "http",
@@ -235,11 +235,13 @@ def test_rendered_report_has_no_external_reference():
     from checkup_ledger.report.guard import find_external_resources
     from checkup_ledger.report.html import render_measurements
 
+    # 区间夹具从知识库取（不在测试里手写数值——那是区间数值的第二处定义）
+    low, high = bounds_pair("ALT")
     judged = [
         Judged(
-            measurement=Measurement(canonical_name="ALT", raw_name="ALT", value=25.0, unit="U/L"),
+            measurement=Measurement(canonical_name="ALT", raw_name="ALT", value=low, unit="U/L"),
             flag=FLAG_NORMAL,
-            range_used=RefRange(low=9, high=40, bounds=BOUNDS_CLOSED, source=RANGE_SOURCE_BUILTIN),
+            range_used=RefRange(low=low, high=high, bounds=BOUNDS_CLOSED, source=RANGE_SOURCE_BUILTIN),
             range_source=RANGE_SOURCE_BUILTIN,
         )
     ]

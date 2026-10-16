@@ -334,30 +334,32 @@ def cmd_selftest(args) -> int:
 
 
 def cmd_bench(args) -> int:
-    from checkup_ledger.benchmark.runner import run_bench
+    from checkup_ledger.benchmark.layered import run_layered_bench
 
     try:
-        report = run_bench(only=args.only, probe_fault=args.probe_fault)
+        report = run_layered_bench(only=args.only, probe_fault=args.probe_fault)
     except ValueError as exc:
         print("用法错误：%s" % exc, file=sys.stderr)
         return EXIT_USAGE
 
-    for suite in report["suites"]:
-        if suite.get("not_enabled"):
-            print("[未启用] %s — %s" % (suite["name"], suite.get("notes", "")))
-            continue
-        print(
-            "[%s] %s — %d/%d 通过%s"
-            % (
-                "达标" if suite["passed"] else "未达标",
-                suite["name"],
-                suite["passed_count"],
-                suite["total"],
-                ("；" + suite.get("notes", "")) if suite.get("notes") else "",
+    for layer in report["layers"]:
+        print("== %s ==" % layer["layer"])
+        for suite in layer["report"]["suites"]:
+            if suite.get("not_enabled"):
+                print("  [未启用] %s — %s" % (suite["name"], suite.get("notes", "")))
+                continue
+            print(
+                "  [%s] %s — %d/%d 通过%s"
+                % (
+                    "达标" if suite["passed"] else "未达标",
+                    suite["name"],
+                    suite["passed_count"],
+                    suite["total"],
+                    ("；" + suite.get("notes", "")) if suite.get("notes") else "",
+                )
             )
-        )
-        for failure in suite.get("failures", [])[:10]:
-            print("      · %s" % failure)
+            for failure in suite.get("failures", [])[:10]:
+                print("        · %s" % failure)
 
     if report.get("notes"):
         print(report["notes"])

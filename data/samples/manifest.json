@@ -1,0 +1,378 @@
+{
+  "cases": [
+    {
+      "case_id": "case-001-zhangsan-2023",
+      "date": "2023-03-11",
+      "files": {
+        "report": "cases/case-001-zhangsan-2023.txt",
+        "truth": "truth/case-001-zhangsan-2023.truth.json"
+      },
+      "institution": "示例体检中心A",
+      "measurements": 2,
+      "pending_review_rows": 0,
+      "sex": "male",
+      "subject": "张三",
+      "tags": [
+        "domain:肝功能",
+        "source:report_printed"
+      ]
+    },
+    {
+      "case_id": "case-002-zhangsan-2024",
+      "date": "2024-03-11",
+      "files": {
+        "report": "cases/case-002-zhangsan-2024.txt",
+        "truth": "truth/case-002-zhangsan-2024.truth.json"
+      },
+      "institution": "示例体检中心A",
+      "measurements": 2,
+      "pending_review_rows": 0,
+      "sex": "male",
+      "subject": "张三",
+      "tags": [
+        "domain:肝功能",
+        "trend:down"
+      ]
+    },
+    {
+      "case_id": "case-003-zhangsan-2025",
+      "date": "2025-03-11",
+      "files": {
+        "report": "cases/case-003-zhangsan-2025.txt",
+        "truth": "truth/case-003-zhangsan-2025.truth.json"
+      },
+      "institution": "示例医院C",
+      "measurements": 2,
+      "pending_review_rows": 0,
+      "sex": "male",
+      "subject": "张三",
+      "tags": [
+        "domain:肝功能",
+        "trend:flat"
+      ]
+    },
+    {
+      "case_id": "case-004-lisi-2024",
+      "date": "2024-05-20",
+      "files": {
+        "report": "cases/case-004-lisi-2024.txt",
+        "truth": "truth/case-004-lisi-2024.truth.json"
+      },
+      "institution": "示例体检中心B",
+      "measurements": 3,
+      "pending_review_rows": 0,
+      "sex": "female",
+      "subject": "李四",
+      "tags": [
+        "domain:血常规",
+        "sex:applies"
+      ]
+    },
+    {
+      "case_id": "case-005-wangwu-2024",
+      "date": "2024-06-01",
+      "files": {
+        "report": "cases/case-005-wangwu-2024.txt",
+        "truth": "truth/case-005-wangwu-2024.truth.json"
+      },
+      "institution": "示例体检中心A",
+      "measurements": 1,
+      "pending_review_rows": 0,
+      "sex": "male",
+      "subject": "王五",
+      "tags": [
+        "domain:血常规",
+        "sex:applies",
+        "source:builtin_default"
+      ]
+    },
+    {
+      "case_id": "case-006-boundary-closed",
+      "date": "2024-07-15",
+      "files": {
+        "report": "cases/case-006-boundary-closed.txt",
+        "truth": "truth/case-006-boundary-closed.truth.json"
+      },
+      "institution": "示例体检中心B",
+      "measurements": 1,
+      "pending_review_rows": 0,
+      "sex": "male",
+      "subject": "王五",
+      "tags": [
+        "boundary:threshold_exact",
+        "bounds:closed",
+        "domain:血脂"
+      ]
+    },
+    {
+      "case_id": "case-007-boundary-open",
+      "date": "2024-07-16",
+      "files": {
+        "report": "cases/case-007-boundary-open.txt",
+        "truth": "truth/case-007-boundary-open.truth.json"
+      },
+      "institution": "示例体检中心B",
+      "measurements": 1,
+      "pending_review_rows": 0,
+      "sex": "male",
+      "subject": "王五",
+      "tags": [
+        "boundary:threshold_exact",
+        "bounds:open",
+        "domain:血脂"
+      ]
+    },
+    {
+      "case_id": "case-008-near-miss",
+      "date": "2024-07-17",
+      "files": {
+        "report": "cases/case-008-near-miss.txt",
+        "truth": "truth/case-008-near-miss.truth.json"
+      },
+      "institution": "示例体检中心B",
+      "measurements": 2,
+      "pending_review_rows": 0,
+      "sex": "male",
+      "subject": "王五",
+      "tags": [
+        "boundary:near_miss",
+        "domain:血脂"
+      ]
+    },
+    {
+      "case_id": "case-009-printed-overrides-default",
+      "date": "2024-08-08",
+      "files": {
+        "report": "cases/case-009-printed-overrides-default.txt",
+        "truth": "truth/case-009-printed-overrides-default.truth.json"
+      },
+      "institution": "示例医院C",
+      "measurements": 1,
+      "pending_review_rows": 0,
+      "sex": "female",
+      "subject": "赵六",
+      "tags": [
+        "priority:printed_overrides_default",
+        "domain:肾功能"
+      ]
+    },
+    {
+      "case_id": "case-010-no-range",
+      "date": "2024-08-09",
+      "files": {
+        "report": "cases/case-010-no-range.txt",
+        "truth": "truth/case-010-no-range.truth.json"
+      },
+      "institution": "示例医院C",
+      "measurements": 2,
+      "pending_review_rows": 0,
+      "sex": "female",
+      "subject": "赵六",
+      "tags": [
+        "source:none",
+        "unit:variant",
+        "domain:血糖"
+      ]
+    },
+    {
+      "case_id": "case-011-lisi-2025",
+      "date": "2025-05-20",
+      "files": {
+        "report": "cases/case-011-lisi-2025.txt",
+        "truth": "truth/case-011-lisi-2025.truth.json"
+      },
+      "institution": "示例体检中心B",
+      "measurements": 2,
+      "pending_review_rows": 0,
+      "sex": "female",
+      "subject": "李四",
+      "tags": [
+        "domain:血常规"
+      ]
+    },
+    {
+      "case_id": "case-012-lowconf-review",
+      "date": "2025-06-20",
+      "files": {
+        "report": "cases/case-012-lowconf-review.txt",
+        "truth": "truth/case-012-lowconf-review.truth.json"
+      },
+      "institution": "示例体检中心B",
+      "measurements": 1,
+      "pending_review_rows": 1,
+      "sex": "female",
+      "subject": "李四",
+      "tags": [
+        "review:pending_not_stored",
+        "domain:肝功能"
+      ]
+    }
+  ],
+  "coverage": {
+    "domains": {
+      "肝功能": 4,
+      "肾功能": 1,
+      "血常规": 3,
+      "血糖": 1,
+      "血脂": 3
+    },
+    "flags": {
+      "high": 3,
+      "low": 1,
+      "normal": 13,
+      "not_assessed": 3
+    },
+    "range_sources": {
+      "builtin_default": 1,
+      "none": 3,
+      "report_printed": 16
+    },
+    "trend_directions": {
+      "down": 4,
+      "flat": 2,
+      "up": 1
+    }
+  },
+  "coverage_note": "**抽样覆盖，非穷举**：本表逐行登记「下限」与「实际采样数」，采样数 ≥ 下限即达标；采样数只说明「该形态出现过」，不等于穷举了该形态。",
+  "generator_seed": 20261016,
+  "schema_version": 1,
+  "thresholds": [
+    {
+      "dimension": "指标域",
+      "form": "血常规",
+      "minimum": 1,
+      "sampled": 3
+    },
+    {
+      "dimension": "指标域",
+      "form": "肝功能",
+      "minimum": 1,
+      "sampled": 4
+    },
+    {
+      "dimension": "指标域",
+      "form": "血脂",
+      "minimum": 1,
+      "sampled": 3
+    },
+    {
+      "dimension": "指标域",
+      "form": "肾功能",
+      "minimum": 1,
+      "sampled": 1
+    },
+    {
+      "dimension": "指标域",
+      "form": "血糖",
+      "minimum": 1,
+      "sampled": 1
+    },
+    {
+      "dimension": "判定形态",
+      "form": "high",
+      "minimum": 1,
+      "sampled": 3
+    },
+    {
+      "dimension": "判定形态",
+      "form": "low",
+      "minimum": 1,
+      "sampled": 1
+    },
+    {
+      "dimension": "判定形态",
+      "form": "normal",
+      "minimum": 1,
+      "sampled": 13
+    },
+    {
+      "dimension": "判定形态",
+      "form": "not_assessed",
+      "minimum": 1,
+      "sampled": 3
+    },
+    {
+      "dimension": "区间来源",
+      "form": "report_printed",
+      "minimum": 1,
+      "sampled": 16
+    },
+    {
+      "dimension": "区间来源",
+      "form": "builtin_default",
+      "minimum": 1,
+      "sampled": 1
+    },
+    {
+      "dimension": "区间来源",
+      "form": "none",
+      "minimum": 1,
+      "sampled": 3
+    },
+    {
+      "dimension": "自印覆盖默认值",
+      "form": "结论相反",
+      "minimum": 1,
+      "sampled": 1
+    },
+    {
+      "dimension": "边界形态",
+      "form": "threshold_exact",
+      "minimum": 1,
+      "sampled": 2
+    },
+    {
+      "dimension": "边界形态",
+      "form": "near_miss",
+      "minimum": 1,
+      "sampled": 1
+    },
+    {
+      "dimension": "边界形态",
+      "form": "bounds_open",
+      "minimum": 1,
+      "sampled": 1
+    },
+    {
+      "dimension": "趋势点",
+      "form": "up",
+      "minimum": 1,
+      "sampled": 1
+    },
+    {
+      "dimension": "趋势点",
+      "form": "down",
+      "minimum": 1,
+      "sampled": 4
+    },
+    {
+      "dimension": "趋势点",
+      "form": "flat",
+      "minimum": 1,
+      "sampled": 2
+    },
+    {
+      "dimension": "低置信复核",
+      "form": "未复核不落库（阴性对照）",
+      "minimum": 1,
+      "sampled": 1
+    },
+    {
+      "dimension": "单位变体",
+      "form": "同量纲归一",
+      "minimum": 1,
+      "sampled": 1
+    },
+    {
+      "dimension": "性别相关",
+      "form": "applies_to.sex 生效",
+      "minimum": 1,
+      "sampled": 2
+    }
+  ],
+  "totals": {
+    "cases": 12,
+    "measurements": 20,
+    "trend_points": 7
+  }
+}
