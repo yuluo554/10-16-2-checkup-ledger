@@ -39,8 +39,8 @@
 **实测证据（本地等价校验，未接远端，CI 待首推验证）**：
 
 ```
-py -3.12 -m pytest                  → 252 passed, 1 skipped
-py -3.8  -m pytest                  → 252 passed, 1 skipped（收集数一致）
+py -3.12 -m pytest                  → 253 passed, 1 skipped
+py -3.8  -m pytest                  → 253 passed, 1 skipped（收集数一致）
 py -3.12 tools/gen_ingest_fixtures.py --check → 5 组夹具逐字节一致（3.8 亦通过）
 py -3.12 tools/verify_ledger.py --verify      → 37 条资产 sha256 逐字节一致
 py -3.12 -m checkup_ledger bench              → 达标 64/64（exit 0）
@@ -108,7 +108,7 @@ ingest <夹具.pdf> → exit 0（真实抽取）；ledger → exit 4（仍拦截
 
 - **用 `py` 不是 `python`**（后者是商店占位符，实测直接 `exit 49`）；跑中文输出加 `-X utf8`。
 - **本机双通道**：`py -3.8`（3.8.8）与 `py -3.12`（3.12.10）**都可用**，各自独立装过本包（`-e .`）。
-  两者收集数必须一致（当前 252/252，各 1 skipped）。
+  两者收集数必须一致（当前 253/253，各 1 skipped）。
 - **`[pdf]` 本机只在 3.8 通道装了**；3.12 通道默认没装 → PDF 相关测试在 3.12 上会走
   "缺依赖"分支？**不会**：`test_ingest.py` 的 PDF 用例需要 pdfplumber 真在位。
   **实测 3.12 上已单独装过 `pdfplumber==0.11.5`**（见下条），故两通道都跑得通。
@@ -148,7 +148,7 @@ ingest <夹具.pdf> → exit 0（真实抽取）；ledger → exit 4（仍拦截
 - [x] `ocr_threshold` 单点定义在随包配置，代码零默认值（入口无默认参数的签名断言）
 - [x] `NOT_READY`（4）的 ingest 触发点退役，**四处同步**（含防复活断言）
 - [x] 输入层夹具确定性：`--check` 位级一致（3.8 与 3.12 双通道）
-- [x] 双解释器全量测试绿，收集数一致（252 / 252，各 1 skipped）
+- [x] 双解释器全量测试绿，收集数一致（253 / 253，各 1 skipped）
 - [x] 台账复核通过（37 条）；基准两层仍 64/64
 - [x] 每条新增守门做过**变异验证**（29/29 全红后恢复绿）
 - [x] PII gate 双向自证（阳性 6 被拦 + 阴性 4 放行）

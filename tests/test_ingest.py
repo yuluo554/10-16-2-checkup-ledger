@@ -257,6 +257,50 @@ def test_gate_never_admits_unreviewed_rows():
     assert [line.text for line in gated.pending_review] == ["low"]
 
 
+def test_module_side_gate_aligns_with_sample_side_truth():
+    """**跨层语义对齐**：模块侧闭环与 M1 样例侧 `case-012` 真值的口径必须一致。
+
+    `data/samples/truth/case-012-lowconf-review.truth.json` 是 M1 在**样例侧**铺的路：
+    它把低置信行列进 `pending_review_rows`，且其 `expected`（期望落库集合）**不含**该行。
+    本棒做的是**模块侧**闭环——两处若口径不一致（比如一边"未复核不落库"、另一边
+    "低置信照落"），那么样例层与模块层会各自"通过"，而真实链路是错的。
+
+    断言三件事：
+    1. 该真值文件确实带 `pending_review_rows` 与"未复核不落库"标签（数据侧证据在位）；
+    2. 该行的 `confidence` 低于随包阈值（与模块侧同一处定义）；
+    3. 拿这个置信度喂模块侧的门 → 该行**不放行**（与真值的期望一致）。
+    """
+    truth_path = repo_path("data", "samples", "truth", "case-012-lowconf-review.truth.json")
+    assert os.path.isfile(truth_path), "样例侧低置信真值不在位：%s" % truth_path
+    with open(truth_path, "r", encoding="utf-8") as handle:
+        truth = json.load(handle)
+
+    pending_rows = truth.get("pending_review_rows")
+    assert pending_rows, "case-012 真值缺 pending_review_rows（样例侧口径不在位）"
+    assert "review:pending_not_stored" in truth.get("tags", []), "case-012 未声明未复核不落库语义"
+
+    threshold = _threshold()
+    for row in pending_rows:
+        confidence = row["confidence"]
+        assert confidence < threshold, (
+            "真值里的低置信行分值 %r 不低于随包阈值 %r——两处口径已漂移" % (confidence, threshold)
+        )
+        # 该行的规范化名不在期望落库集合里（真值的核心断言）
+        expected_names = {item["canonical_name"] for item in truth.get("expected", [])}
+        assert row["canonical_name"] not in expected_names, (
+            "低置信行 %r 出现在期望落库集合里（真值自相矛盾）" % row["canonical_name"]
+        )
+
+        # 模块侧同口径：该置信度喂进门 → 不放行
+        line = RawLine(
+            page=1, line_no=1, text="%s %s" % (row["canonical_name"], row["value"]),
+            confidence=confidence, source_file="case-012.png",
+        )
+        gated = apply_review_gate(IngestResult(lines=[line], engine="ocr"), ocr_threshold=threshold)
+        assert gated.lines == [], "模块侧放行了真值声明未复核不落库的行"
+        assert len(gated.pending_review) == 1
+
+
 # ============================================================ 门 3：真实扫描件夹具
 
 
