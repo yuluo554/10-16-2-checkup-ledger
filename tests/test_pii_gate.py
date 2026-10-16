@@ -42,6 +42,9 @@ def gate():
         ("private/data.txt", "", "path"),
         ("docs/report.pdf", "", "type"),
         ("output/ledger.db", "", "type"),
+        # M4：台账模块真写出来的库文件形态（含表头 SQLite 魔数）——必须被类型面拦下
+        ("~/.checkup_ledger/ledger.db", "SQLite format 3\x00", "type"),
+        ("backup/2024-03-11.sqlite", "", "type"),
         ("notes/x.txt", "\u8eab\u4efd\u8bc1 110101199003072316", "content"),
         ("notes/x.txt", "\u8054\u7cfb\u7535\u8bdd 13800138000", "content"),
         ("notes/x.txt", "\u5c31\u8bca\u4e8e\u5317\u4eac\u534f\u548c\u4f53\u68c0\u4e2d\u5fc3", "content"),
@@ -58,6 +61,77 @@ def test_positive_samples_are_blocked(gate, rel_path, content, layer):
         findings = gate.check_file(target, root=tmp)
     layers = {item.layer for item in findings}
     assert layer in layers, "%s 未被 %s 层拦下（实得 %s）" % (rel_path, layer, layers or "无")
+
+
+# ---------------------------------------------------------------- M4：真台账库被拦 + 不入 git
+
+
+def test_real_ledger_database_is_blocked_by_gate(gate):
+    """M4：模块④ 真写出来的台账库（含真实报告落下的数值）必须被 PII gate 拦下。
+
+    这是"台账 db 永不入 git"的**实物证明**：用 `open_ledger` 真建一个库、
+    真写一条记录，再让 gate 去检查它——而不是只用一个空文件冒充 `.db`。
+    """
+    from checkup_ledger.ledger import open_ledger, upsert
+    from checkup_ledger.model import (
+        BOUNDS_CLOSED,
+        FLAG_HIGH,
+        Judged,
+        Measurement,
+        RANGE_SOURCE_REPORT,
+        RefRange,
+    )
+
+    # 区间夹具从知识库取（不在测试里手写端点——那是区间数值的第二处定义）
+    from helpers import bounds_pair
+
+    low, high = bounds_pair("ALT")
+    with tempfile.TemporaryDirectory() as tmp:
+        target = os.path.join(tmp, "real_reports", "ledger.db")
+        with open_ledger(target) as ledger:
+            upsert(
+                ledger,
+                [
+                    Judged(
+                        measurement=Measurement(
+                            canonical_name="ALT", raw_name="ALT", value=high, unit="U/L"
+                        ),
+                        flag=FLAG_HIGH,
+                        range_used=RefRange(
+                            low=low, high=high, bounds=BOUNDS_CLOSED, source=RANGE_SOURCE_REPORT
+                        ),
+                        range_source=RANGE_SOURCE_REPORT,
+                    )
+                ],
+                subject="张三",
+                date="2024-03-11",
+            )
+        assert os.path.isfile(target), "台账库未落盘（探针失效）"
+        findings = gate.check_file(target, root=tmp)
+    layers = {item.layer for item in findings}
+    assert "type" in layers, "真台账库未被类型面拦下（*.db 不入 git 落空）：%s" % findings
+    assert "path" in layers, "台账库落在禁用路径却未被拦下：%s" % findings
+
+
+def test_ledger_db_is_gitignored():
+    """台账 `*.db` 必须在 `.gitignore` 覆盖内（PII gate 只在提交时拦，那之前它已在工作树里）。"""
+    import fnmatch
+
+    from helpers import read_text
+
+    patterns = [line.strip() for line in read_text(".gitignore").splitlines()]
+    patterns = [item for item in patterns if item and not item.startswith("#")]
+    assert any(fnmatch.fnmatch("ledger.db", pattern) for pattern in patterns), (
+        "`.gitignore` 未覆盖 *.db（真实台账会落进工作树）：%s" % patterns
+    )
+
+
+def test_repo_contains_no_tracked_database_files(gate):
+    """仓库里**没有任何**被跟踪的 db/sqlite 文件（真实台账永不入库）。"""
+    from helpers import tracked_files
+
+    offenders = [rel for rel in tracked_files() if rel.lower().endswith((".db", ".sqlite", ".sqlite3"))]
+    assert not offenders, "仓库内出现被跟踪的数据库文件：%s" % offenders
 
 
 # ---------------------------------------------------------------- 阴性：必放行

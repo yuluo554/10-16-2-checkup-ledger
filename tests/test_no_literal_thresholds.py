@@ -38,12 +38,19 @@ import os
 import re
 import tokenize
 
-from helpers import iter_python_files, read_text, repo_path
+from helpers import (
+    STRUCTURAL_EXEMPT,
+    YAML_PATH,
+    iter_python_files,
+    load_yaml_tokens,
+    read_text,
+    repo_path,
+)
 
-YAML_PATH = "src/checkup_ledger/data/indicators.yaml"
-
-# 结构常数豁免（口径写死在 plan/04 第二节第 3 条）
-STRUCTURAL_EXEMPT = frozenset({0.0, 1.0, 2.0, -1.0})
+# token 实算逻辑与结构常数豁免都在 `helpers.py`（**唯一实算处**）：
+# 本门与各层的"本层不得出现端点"子门（`test_layering.py`）共用同一份 token 集——
+# 各门自写一份实算逻辑，改 YAML 时会出现"有的门更新了、有的没更新"
+# （旧口径的门会静默放过新增端点的抄袭）。
 
 # 文件级例外：**逐条登记，且必须写清理由**。清单由测试锁死（改这里必须同步改测试）。
 #
@@ -76,34 +83,6 @@ EXEMPT_FILES = {
 # - 后不接标识符字符、小数点。
 # 这样抄进注释的裸端点会被抓到，而日期/标识符片段与单位写法（十的幂写法）不会误报。
 _NUMBER_RE = re.compile(r"(?<![\w.\-])(\d+(?:\.\d+)?)(?![\w.])")
-
-
-def load_yaml_tokens():
-    """从知识库**实算** token 集（全部上下限数值，去掉结构常数豁免）。"""
-    import yaml
-
-    path = repo_path(YAML_PATH)
-    assert os.path.isfile(path), "知识库文件不存在：%s" % YAML_PATH
-    with open(path, "r", encoding="utf-8") as handle:
-        root = yaml.safe_load(handle)
-
-    indicators = root.get("indicators")
-    assert isinstance(indicators, list) and indicators, "知识库 indicators 为空（探针失效）"
-
-    tokens = set()
-    for entry in indicators:
-        default_range = entry.get("default_range") or {}
-        for key in ("low", "high"):
-            value = default_range.get(key)
-            if value is None or isinstance(value, bool):
-                continue
-            if not isinstance(value, (int, float)):
-                continue
-            tokens.add(float(value))
-
-    tokens -= STRUCTURAL_EXEMPT
-    assert tokens, "token 集为空（知识库没有任何区间数值？探针失效）"
-    return tokens
 
 
 def scan_text(text, tokens):

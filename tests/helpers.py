@@ -202,3 +202,45 @@ def _num(value):
     if float(value).is_integer():
         return str(int(value))
     return repr(value)
+
+
+# ---------------------------------------------------------------- 区间 token 集（零字面量门禁共用）
+
+YAML_PATH = "src/checkup_ledger/data/indicators.yaml"
+
+# 结构常数豁免（口径写死在 plan/04 第二节第 3 条）
+STRUCTURAL_EXEMPT = frozenset({0.0, 1.0, 2.0, -1.0})
+
+
+def load_yaml_tokens():
+    """从知识库**实算**区间端点 token 集（去掉结构常数豁免）。
+
+    **唯一实算处**：零字面量门禁（`test_no_literal_thresholds.py`）与各层的
+    "本层不得出现区间端点"子门（`test_layering.py`）共用本函数。各门自写一份
+    实算逻辑 = token 集有多份口径，改 YAML 时有的门更新、有的没更新
+    （旧口径的门会静默放过新增端点的抄袭）。
+    """
+    import yaml
+
+    path = repo_path(YAML_PATH)
+    assert os.path.isfile(path), "知识库文件不存在：%s" % YAML_PATH
+    with open(path, "r", encoding="utf-8") as handle:
+        root = yaml.safe_load(handle)
+
+    indicators = root.get("indicators")
+    assert isinstance(indicators, list) and indicators, "知识库 indicators 为空（探针失效）"
+
+    tokens = set()
+    for entry in indicators:
+        default_range = entry.get("default_range") or {}
+        for key in ("low", "high"):
+            value = default_range.get(key)
+            if value is None or isinstance(value, bool):
+                continue
+            if not isinstance(value, (int, float)):
+                continue
+            tokens.add(float(value))
+
+    tokens -= STRUCTURAL_EXEMPT
+    assert tokens, "token 集为空（知识库没有任何区间数值？探针失效）"
+    return tokens

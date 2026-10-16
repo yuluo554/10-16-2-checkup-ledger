@@ -1,27 +1,32 @@
-"""退出码契约：0/1/2/3/4 每级至少一条断言。
+"""退出码契约：0/1/2/3 每级至少一条断言。
 
 非零 ≠ 跑挂：`1` 是"工具查出了不合规"这一**成功执行 + 负面结论**。
-`4` 是"阶段未就绪"，语义是**显式拦截、不伪造空结果**。
+
+**`4`（`NOT_READY` 阶段未就绪）已在 M4 整项退役**：首期五模块（输入 / 规范化 /
+判定 / 台账 / 导出+报告）全部落地，没有"尚未落地"的模块需要显式拦截。退役的
+四处同步在本文件体现为**防复活断言**：常量若还在、或某个子命令还留着
+`not_ready` 分派，本文件就会红。
 """
 
+import os
 import sys
 
 import pytest
 
-from helpers import run_cli
+from helpers import repo_path, run_cli
 
 from checkup_ledger.exit_codes import (
     ALL_EXIT_CODES,
     EXIT_FINDINGS,
     EXIT_MISSING_DEP,
-    EXIT_NOT_READY,
     EXIT_OK,
     EXIT_USAGE,
 )
 
 
 def test_exit_code_set_is_complete():
-    assert set(ALL_EXIT_CODES) == {0, 1, 2, 3, 4}
+    """M4 退役后契约是四级：0/1/2/3。"""
+    assert set(ALL_EXIT_CODES) == {0, 1, 2, 3}
 
 
 def test_exit_codes_are_distinct():
@@ -81,13 +86,6 @@ def test_exit_usage_from_unknown_bench_suite():
     assert "未知名套件" in err
 
 
-def test_exit_not_ready_from_unimplemented_module():
-    """未实现模块必须显式拦截，而不是返回伪造的空结果。"""
-    code, _out, err = run_cli(["ledger"])
-    assert code == EXIT_NOT_READY
-    assert "尚未落地" in err
-
-
 def test_ingest_is_no_longer_intercepted_by_not_ready():
     """M2：模块① 输入层已落地，**不得**再走 exit 4 拦截。
 
@@ -95,11 +93,9 @@ def test_ingest_is_no_longer_intercepted_by_not_ready():
     退役就没真发生。断言用"给定真实输入得到真实结果"而非"不再报未就绪"——
     后者可以被"改成报别的错"满足，前者才证明它真的接了实现。
     """
-    from helpers import repo_path
-
     sample = repo_path("data", "samples", "ingest", "pdf", "ingest-pdf-plain.pdf")
     code, out, err = run_cli(["ingest", sample])
-    assert code != EXIT_NOT_READY, "ingest 仍在走未就绪拦截（退役未生效）：%s" % err
+    assert code != 4, "ingest 仍在走未就绪拦截（退役未生效）：%s" % err
     assert "尚未落地" not in err, "ingest 仍报未就绪文案"
     assert "抽取引擎" in out, "ingest 未走真实实现：\n%s" % out
 
@@ -110,65 +106,84 @@ def test_normalize_is_no_longer_intercepted_by_not_ready():
     与 `ingest` 同形态：断言落在"给定真实输入得到真实结果"上——只断言
     "不再报未就绪"是弱断言（改成报别的错也能满足它）。
     """
-    from helpers import repo_path
-
     sample = repo_path("data", "samples", "ingest", "pdf", "ingest-pdf-plain.pdf")
     code, out, err = run_cli(["normalize", sample])
-    assert code != EXIT_NOT_READY, "normalize 仍在走未就绪拦截（退役未生效）：%s" % err
+    assert code != 4, "normalize 仍在走未就绪拦截（退役未生效）：%s" % err
     assert "尚未落地" not in err, "normalize 仍报未就绪文案"
     assert "已映射" in out, "normalize 未走真实实现：\n%s" % out
     # 端到端贯通：报告行 → 规范化 → 判定，判定来源必须显式可见
     assert "report_printed" in out, "判定来源未在产物里显式可见：\n%s" % out
 
 
-def test_not_ready_module_list_excludes_landed_module():
-    """防幽灵语义复活：已落地模块不得留在拦截名单里。"""
-    from checkup_ledger.cli import _NOT_READY_MODULES
+def test_ledger_export_report_are_no_longer_intercepted_by_not_ready():
+    """M4：模块④ 台账与模块⑤ 导出/报告已落地，**不得**再走 exit 4 拦截。
 
-    for landed in ("ingest", "normalize"):
-        assert landed not in _NOT_READY_MODULES, (
-            "已落地模块 %s 仍在未就绪名单：%s" % (landed, sorted(_NOT_READY_MODULES))
-        )
-    # 其余模块尚未落地，仍应在名单内（防"一刀切清空"把拦截也删掉）
-    for name in ("ledger", "export", "report"):
-        assert name in _NOT_READY_MODULES, "尚未落地的模块 %s 被移出拦截名单" % name
+    三条命令都断言"给定真实输入得到真实结果"（而不是"不再报未就绪"）：
+    - `ledger`：入库后台账里有行（`入库 N 条`）；
+    - `export`：导出物真的落盘且内容含表头；
+    - `report`：HTML 真的落盘且含折线图元。
 
-
-def test_not_ready_constant_is_retained_until_last_module_lands():
-    """**部分退役**是 M2 的有意决策，不是"忘了删常量"。
-
-    待办原文写的是"本模块的拦截点整项退役"。实现时按"触发点逐个退役"处置：
-    常量保留（其余四个模块仍在使用它），只把已落地模块移出拦截名单。
-    理由：若提前删常量，其余未落地模块只能借用 `EXIT_USAGE`，那会把"阶段未就绪"
-    读成"用法错误"——一个语义明确的码被换成一个语义错误的码，是**退步**。
-
-    这条断言的作用：让后来者知道"常量还在"是**设计内行为**，
-    并钉住"只有全部模块落地后才可删"的判据（那时本测试也要一并改）。
+    这里用**显式临时库/临时产物路径**，不碰用户主目录与 CWD。
     """
-    import checkup_ledger.exit_codes as mod
-    from checkup_ledger.cli import _NOT_READY_MODULES
+    import tempfile
 
-    if _NOT_READY_MODULES:
-        assert hasattr(mod, "EXIT_NOT_READY"), (
-            "仍有模块未落地，却已删除 EXIT_NOT_READY——它们只能借用用法错误码（语义退步）"
+    sample = repo_path("data", "samples", "ingest", "pdf", "ingest-pdf-plain.pdf")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        db = os.path.join(tmp, "ledger.db")
+        code, out, err = run_cli(
+            ["ledger", sample, "--db", db, "--date", "2024-03-11", "--subject", "张三"]
         )
-    else:  # pragma: no cover - 首期全部落地后才走到这里（M4）
-        assert not hasattr(mod, "EXIT_NOT_READY"), (
-            "首期模块全部落地，EXIT_NOT_READY 应整项退役（连带本测试一并改）"
+        assert code != 4, "ledger 仍在走未就绪拦截（退役未生效）：%s" % err
+        assert "尚未落地" not in err, "ledger 仍报未就绪文案"
+        assert "入库 4 条" in out, "ledger 未走真实实现：\n%s" % out
+
+        out_csv = os.path.join(tmp, "s.csv")
+        code, out, err = run_cli(
+            ["export", sample, "--db", db, "--date", "2024-03-11", "--subject", "张三",
+             "--out", out_csv, "--fmt", "csv"]
         )
+        assert code != 4, "export 仍在走未就绪拦截（退役未生效）：%s" % err
+        assert "尚未落地" not in err, "export 仍报未就绪文案"
+        assert os.path.isfile(out_csv), "export 未落盘产物"
+        assert "指标,日期,数值" in open(out_csv, encoding="utf-8").read(), "导出物缺表头"
+
+        out_html = os.path.join(tmp, "r.html")
+        code, out, err = run_cli(
+            ["report", sample, "--db", db, "--date", "2024-03-11", "--subject", "张三",
+             "--out", out_html]
+        )
+        assert code != 4, "report 仍在走未就绪拦截（退役未生效）：%s" % err
+        assert "尚未落地" not in err, "report 仍报未就绪文案"
+        assert os.path.isfile(out_html), "report 未落盘产物"
+        assert "<svg" in open(out_html, encoding="utf-8").read(), "报告缺折线图元"
 
 
-def test_not_ready_does_not_fake_empty_result():
-    """未就绪路径不得打印任何看起来像正常结果的表格/计数。"""
-    _code, out, _err = run_cli(["ledger"])
-    assert "0 条记录" not in out
-    assert "成功" not in out
+def test_not_ready_module_list_is_gone():
+    """防幽灵语义复活（M4 整项退役）：拦截名单与常量必须一并消失。
+
+    判据落在"模块属性还在不在"上，而不是"名单是不是空的"——把名单改成空
+    dict 也能让"名单为空"成立，而 `cmd_not_ready` 与常量仍留在源码里
+    （语义复活）。故这里**直接断言属性不存在**。
+    """
+    import checkup_ledger.cli as cli_mod
+    import checkup_ledger.exit_codes as exit_mod
+
+    assert not hasattr(cli_mod, "_NOT_READY_MODULES"), (
+        "首期五模块全部落地，_NOT_READY_MODULES 应随退役删除（幽灵语义复活）"
+    )
+    assert not hasattr(cli_mod, "cmd_not_ready"), (
+        "cmd_not_ready 应随退役删除（幽灵语义复活）"
+    )
+    assert not hasattr(exit_mod, "EXIT_NOT_READY"), (
+        "EXIT_NOT_READY 常量应随退役删除（幽灵语义复活）"
+    )
 
 
 def test_missing_dep_constant_exists():
     """缺依赖出口常量的取值锁定（模块①②落地后由真实路径覆盖）。"""
     assert EXIT_MISSING_DEP == 3
-    assert EXIT_MISSING_DEP not in (EXIT_OK, EXIT_FINDINGS, EXIT_USAGE, EXIT_NOT_READY)
+    assert EXIT_MISSING_DEP not in (EXIT_OK, EXIT_FINDINGS, EXIT_USAGE)
 
 
 @pytest.mark.skipif(sys.version_info < (3, 8), reason="require 3.8+")
@@ -182,6 +197,5 @@ def test_exit_codes_module_has_no_resurrected_stage_codes():
             "EXIT_FINDINGS",
             "EXIT_USAGE",
             "EXIT_MISSING_DEP",
-            "EXIT_NOT_READY",
         ):
             assert name in ("EXIT_CODES",), "出现未登记的新退出码常量：%s" % name

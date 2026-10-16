@@ -107,13 +107,20 @@ class Judged:
 
 @dataclass(frozen=True)
 class TrendPoint:
-    """跨日期的同指标变化。只陈述事实幅度。"""
+    """跨日期的同指标变化。只陈述事实幅度。
+
+    `direction`（M4 补）是三态**事实**归类（升/降/平稳），由 `engine.trend_direction`
+    一处实算——不是"解读"，也与 H/L 判定无关，故可以出现在台账/导出/渲染链上。
+    序列首点无可比前值，三个变化字段一律为 `None`（**不填 0**：0 是"没变化"这一
+    事实，与"没有可比前值"是两件事，混起来会让首点看起来"平稳"）。
+    """
 
     canonical_name: str
     date: str
     value: float
     delta: Optional[float] = None
     delta_pct: Optional[float] = None
+    direction: Optional[str] = None
 
 
 @dataclass(frozen=True)

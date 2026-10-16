@@ -115,32 +115,19 @@ def test_face1_readme_flags_resolve_on_correct_subcommand():
 
 
 def test_face2_every_subcommand_is_documented():
-    """已实现的子命令都要在 README 出现。
+    """**每个**已实现的子命令都要在 README 出现。
 
-    例外：**未就绪**的模块命令（走 exit 4 契约）在 README 里以"里程碑状态"叙述，
-    不要求逐条列在命令速查里——但必须在 README 的**里程碑/状态节**被点名，
-    否则用户看到 `--help` 里有它却不知其状态。
-
-    判据用"README 是否交代了里程碑推进"（状态节存在），而不是钉死某个里程碑名
-    （钉死"M0 骨架"会让每次里程碑回写都误伤这条门）。
+    M4 起首期五模块全部落地、`NOT_READY`(4) 整项退役，故不再有"未就绪命令可
+    豁免"这条例外——**全部**子命令都必须在 README 的命令速查里逐条出现。
+    这条比旧版更严：旧版允许未就绪命令只被里程碑状态节"点名"就算交代，
+    退役后没有任何命令可以靠这个豁免（也就没有"实现了但只在计划里提到"的余地）。
     """
     readme = read_text("README.md")
     parser = build_parser()
     subs = _subparser_names(parser)
     assert subs, "解析器未暴露任何子命令（反射探针失效）"
 
-    from checkup_ledger.cli import _NOT_READY_MODULES
-
-    # README 必须有"项目状态"节并说明按里程碑推进（未就绪命令的交代处）
-    has_status_section = "项目状态" in readme and "里程碑" in readme
-
-    missing = []
-    for name in subs:
-        if name in readme:
-            continue
-        if name in _NOT_READY_MODULES and has_status_section:
-            continue  # 未就绪命令由里程碑状态节统一交代
-        missing.append(name)
+    missing = [name for name in subs if name not in readme]
     assert not missing, "已实现但 README 未提及的子命令：%s" % missing
 
 

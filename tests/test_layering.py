@@ -1,10 +1,20 @@
 """分层纪律与零外链：把"渲染层零判定""判定层纯函数"从口号变成静态断言。
 
-两条门（都做 AST 静态分析，不靠"我读过代码"）：
+门（都做 AST 静态分析，不靠"我读过代码"）：
 1. **判定内核无 I/O**：`engine/compare.py` 不得 import 文件/网络/时间/随机模块；
 2. **渲染层零判定**：`report/html.py` 不得出现算术/比较运算（`BinOp`/`Compare`），
-   也不得出现区间数值字面量——界面只消费既有结论、不重算任何判定。
-3. **零外链常驻**：渲染出口必须调用断言（不是"测试里验一次"）。
+   也不得出现区间数值字面量——界面只消费既有结论、不重算任何判定；
+3. **图元计算与装配分离**（M4）：算术/比较只准落在 `report/chart.py`（它**看不到**
+   判定态），`report/html.py` 与 `report/trend.py` 一律不许有——判据是**语义**
+   （"值 vs 区间"是判定，"求域上下界"是图元本职），不是"有没有运算符"；
+4. **零外链常驻**：渲染出口必须调用断言（不是"测试里验一次"）；
+5. **台账层不做判定**：`ledger/` 不得 import 判定内核的**判定函数**（`compare`），
+   也不得产出 `FLAG_*`——它只消费 `Judged`（M4 新增）。
+
+为什么 3 要单设：渲染层要画折线**必须**做算术与比较（坐标换算、求域上下界）。
+把这两件事挤进装配模块，就只能靠"别再写比较"这句口头纪律守——而它守不住
+（坐标换算本身就需要比较）。故按**语义**划线：图元计算留在 `chart.py`（看不到
+判定态、不做"值 vs 区间"的比较），装配层只剩拼接。
 """
 
 import ast
@@ -12,7 +22,7 @@ import os
 
 import pytest
 
-from helpers import bounds_pair, iter_python_files, read_text, repo_path
+from helpers import bounds_pair, iter_python_files, load_yaml_tokens, read_text, repo_path
 
 FORBIDDEN_IO_MODULES = (
     "io", "os", "pathlib", "glob", "shutil", "socket", "urllib", "http",
@@ -21,8 +31,19 @@ FORBIDDEN_IO_MODULES = (
 )
 
 RENDERER_PATH = "src/checkup_ledger/report/html.py"
+CHART_PATH = "src/checkup_ledger/report/chart.py"
+TREND_PATH = "src/checkup_ledger/report/trend.py"
 ENGINE_PATH = "src/checkup_ledger/engine/compare.py"
 INGEST_LINES_PATH = "src/checkup_ledger/ingest/lines.py"
+
+# 模块④ 台账：持久层（允许 I/O——它就是干这个的），但**不许做判定**
+LEDGER_PREFIX = "src/checkup_ledger/ledger/"
+
+# 模块⑤ 导出层
+EXPORT_PATH = "src/checkup_ledger/export/__init__.py"
+
+# 渲染链上"只准拼接"的模块（算术与比较必须落在 chart.py）
+RENDER_ASSEMBLY_MODULES = (RENDERER_PATH, TREND_PATH)
 
 # 模块② 的纯函数件（**不含 pipeline.py**：它是编排层，唯一允许读文件）
 NORMALIZE_PURE_MODULES = (
@@ -457,3 +478,287 @@ def test_json_dump_only_in_serialize_module():
                         and getattr(func.value, "id", None) == "json":
                     offenders.append("%s:%d" % (rel, node.lineno))
     assert not offenders, "json.dump(s) 出现在 serialize 之外（写盘不单点）：%s" % offenders
+
+
+# ---------------------------------------------------------------- M4：图元计算与装配分离
+
+
+def test_render_assembly_modules_have_no_arithmetic_or_comparison():
+    """装配层（`html.py` / `trend.py`）**只准拼接**：无算术、无大小比较。
+
+    这条与 `test_renderer_has_no_arithmetic` 同源，但把范围扩到整个装配层
+    （M4 新增 `trend.py`）。判据：`BinOp`（除 `%`/`+` 这类字符串拼接）与
+    `Compare` 的大小运算符一律不许出现——坐标与分位都由 `chart.py` 算好。
+    """
+    offenders = []
+    for rel in RENDER_ASSEMBLY_MODULES:
+        tree = _parse(rel)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.BinOp) and not isinstance(node.op, (ast.Mod, ast.Add)):
+                offenders.append("%s:%d BinOp %s" % (rel, node.lineno, type(node.op).__name__))
+            if isinstance(node, ast.Compare):
+                for op in node.ops:
+                    if isinstance(op, (ast.Lt, ast.LtE, ast.Gt, ast.GtE)):
+                        offenders.append("%s:%d Compare %s" % (rel, node.lineno, type(op).__name__))
+    assert not offenders, "装配层出现算术/大小比较（应落在 chart.py）：%s" % offenders
+
+
+def test_chart_module_does_not_decide_flags_or_see_ranges():
+    """`chart.py` 是**图元计算**模块：看不到判定态、不 import 判定内核。
+
+    它当然要做算术（坐标换算）与比较（求域上下界）——那是图元本职。但它**不得**
+    出现判定态常量（`FLAG_*`），否则"谁在下结论"的边界就从 import 图上一眼破。
+    区间端点在本模块里只是**画布上的数字**（用来撑开值域、定带的位置），
+    不与观测值做大小比较——故这里同时禁"拿区间端点与值比较"的形态。
+    """
+    tree = _parse(CHART_PATH)
+    source = read_text(CHART_PATH)
+    for token in ("FLAG_HIGH", "FLAG_LOW", "FLAG_NORMAL", "FLAG_NOT_ASSESSED"):
+        assert token not in source, "图元计算模块出现判定态 %s（越界做判定）" % token
+    offenders = [name for name in _module_level_imports(tree) if "engine" in name]
+    assert not offenders, "图元计算模块 import 了判定内核：%s" % offenders
+
+
+def test_chart_module_has_no_io_imports():
+    """图元计算是纯函数：不读文件、不读时钟、不联网、不连库。"""
+    tree = _parse(CHART_PATH)
+    imported = [name.split(".")[0] for name in _module_level_imports(tree)]
+    offenders = [name for name in imported if name in FORBIDDEN_IO_MODULES]
+    assert not offenders, "图元计算模块 import 了 I/O 类模块：%s" % offenders
+
+
+def test_ledger_layer_does_not_import_judgement_kernel_functions():
+    """台账层只**消费** `Judged`，不得 import 判定函数（`compare`/`select_range`/`judge`）。
+
+    允许它 import `engine.compare` 里的**趋势**函数（`trend_delta`/`trend_direction`）
+    ——趋势三态是"事实归类"，与 H/L 判定无关，且必须单点实算（不重写口径）。
+    但 `compare` 是判定本身：台账若能调它，"判定只在一处"的边界就破了。
+    """
+    banned = ("compare", "select_range", "judge", "judge_all", "validate_range", "range_applies_to")
+    offenders = []
+    for rel in iter_python_files():
+        if not rel.startswith(LEDGER_PREFIX):
+            continue
+        tree = _parse(rel)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module and "engine" in node.module:
+                for alias in node.names:
+                    if alias.name in banned:
+                        offenders.append("%s imports %s from %s" % (rel, alias.name, node.module))
+    assert not offenders, "台账层 import 了判定函数（越界做判定）：%s" % offenders
+
+
+def test_ledger_layer_does_not_decide_flags():
+    """台账层不得产出判定态常量（`FLAG_*`）——它只落库既有判定结果。"""
+    offenders = []
+    for rel in iter_python_files():
+        if not rel.startswith(LEDGER_PREFIX):
+            continue
+        source = read_text(rel)
+        for token in ("FLAG_HIGH", "FLAG_LOW", "FLAG_NORMAL", "FLAG_NOT_ASSESSED"):
+            if token in source:
+                offenders.append("%s 出现 %s" % (rel, token))
+    assert not offenders, "台账层出现判定态（越界做判定）：%s" % offenders
+
+
+def test_ledger_layer_has_no_embedded_range_numbers():
+    """台账层不得出现**知识库区间端点**——它们只能来自知识库（零字面量门禁）。
+
+    判据用**真实 token 集**（`helpers.load_yaml_tokens`，**唯一实算处**），
+    而不是自定一份豁免清单：台账里合法存在**日历结构常数**（年/月/日的位数、
+    一年几个月、一月最多几天）与 schema 版本号，它们与区间端点无关。
+    按真实端点集比对，就只拦"有人把阈值抄进了台账层"这一件事，
+    不会因为日历常数而误报——也不会因为自定豁免而放宽门。
+    """
+    tokens = load_yaml_tokens()
+    offenders = []
+    for rel in iter_python_files():
+        if not rel.startswith(LEDGER_PREFIX):
+            continue
+        for node in ast.walk(_parse(rel)):
+            if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)) \
+                    and not isinstance(node.value, bool):
+                if float(node.value) in tokens:
+                    offenders.append("%s:%d 出现区间端点 %s" % (rel, node.lineno, node.value))
+    assert not offenders, "台账层出现知识库区间端点字面量：%s" % offenders
+
+
+def test_export_layer_has_no_embedded_range_numbers():
+    """导出层不得出现**知识库区间端点**——它们只能来自知识库（零字面量门禁）。
+
+    同台账层：用真实 token 集比对。导出层的 `PERCENT_SCALE`（百分比换算）是
+    结构常数，与区间端点无关，故不会被误报。
+    """
+    tokens = load_yaml_tokens()
+    offenders = []
+    for node in ast.walk(_parse(EXPORT_PATH)):
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)) \
+                and not isinstance(node.value, bool):
+            if float(node.value) in tokens:
+                offenders.append("%s:%d 出现区间端点 %s" % (EXPORT_PATH, node.lineno, node.value))
+    assert not offenders, "导出层出现知识库区间端点字面量：%s" % offenders
+
+
+def test_export_layer_calls_advisory_wording_gate_always():
+    """建议词根门必须是**导出出口的常驻行为**，不是只在测试里验一次。"""
+    source = read_text(EXPORT_PATH)
+    assert "assert_no_advisory_wording" in source, "导出出口未调用建议词根门"
+    tree = _parse(EXPORT_PATH)
+    called = False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            func = node.func
+            name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
+            if name == "assert_no_advisory_wording":
+                called = True
+    assert called, "建议词根门只被定义而未被调用（假门）"
+
+
+def test_renderer_calls_advisory_wording_gate_always():
+    """渲染层也要过词根门（界面文字不许给意见），且必须是出口常驻行为。
+
+    判据用**配对**而不是"文件里出现过这个名字"：每条渲染出口都同时跑零外链断言
+    与词根断言——**少任何一个**都会红。只查"名字出现过"会被"另一个出口还留着"
+    满足（删掉一处调用仍绿），那是假门。
+    """
+    tree = _parse(RENDERER_PATH)
+    pairs = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        called = set()
+        for child in ast.walk(node):
+            if isinstance(child, ast.Call):
+                func = child.func
+                name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
+                if name:
+                    called.add(name)
+        if "assert_no_external_resources" in called or "assert_no_advisory_wording" in called:
+            pairs.append((node.name, called))
+
+    assert pairs, "渲染层没有任何出口跑常驻断言（探针失效）"
+    for name, called in pairs:
+        assert "assert_no_external_resources" in called, (
+            "%s 出口未跑零外链断言（断网可开承诺落空）" % name
+        )
+        assert "assert_no_advisory_wording" in called, (
+            "%s 出口未跑建议词根断言（界面文字可能给意见）" % name
+        )
+
+
+def test_render_assembly_modules_do_not_import_engine():
+    """装配层不得 import 判定内核——那会让"零判定"的边界形同虚设。"""
+    offenders = []
+    for rel in RENDER_ASSEMBLY_MODULES:
+        for name in _module_level_imports(_parse(rel)):
+            if "engine" in name:
+                offenders.append("%s imports %s" % (rel, name))
+    assert not offenders, "装配层 import 了判定内核：%s" % offenders
+
+
+# ---------------------------------------------------------------- M4：首启免责
+
+
+def test_disclaimer_writes_marker_only_in_given_home():
+    """免责标记落在**给定主目录**内（测试不许去动真实 `~`）。"""
+    import tempfile
+
+    from checkup_ledger import disclaimer
+
+    with tempfile.TemporaryDirectory() as tmp:
+        assert disclaimer.needs_disclaimer(home=tmp), "首次运行应需要打印免责"
+        assert disclaimer.mark_accepted(home=tmp) is True
+        assert disclaimer.is_accepted(home=tmp), "标记未落盘"
+        assert not disclaimer.needs_disclaimer(home=tmp), "已接受仍报需要"
+        assert os.path.isfile(disclaimer.accepted_path(home=tmp)), "标记文件不在给定主目录内"
+        # 再落一次是幂等的（不报错）
+        assert disclaimer.mark_accepted(home=tmp) is True
+
+
+def test_disclaimer_marker_contains_no_identity_metadata():
+    """标记文件只记"接受过"这一个事实——不写时间戳/机器名（隐私红线）。"""
+    import re
+    import tempfile
+
+    from checkup_ledger import disclaimer
+
+    with tempfile.TemporaryDirectory() as tmp:
+        disclaimer.mark_accepted(home=tmp)
+        with open(disclaimer.accepted_path(home=tmp), "r", encoding="utf-8") as handle:
+            text = handle.read()
+    assert text.strip(), "标记文件为空（探针失效）"
+    assert not re.search(r"\d{4}-\d{2}-\d{2}", text), "标记文件含日期（身份线索）"
+    assert not re.search(r"\d{2}:\d{2}", text), "标记文件含时间（身份线索）"
+
+
+def test_disclaimer_banner_is_empty_after_acceptance():
+    """已接受 → 横幅为空串（不再重复念）。"""
+    import tempfile
+
+    from checkup_ledger import disclaimer
+
+    with tempfile.TemporaryDirectory() as tmp:
+        assert disclaimer.first_run_banner(home=tmp) == disclaimer.DISCLAIMER_TEXT
+        disclaimer.mark_accepted(home=tmp)
+        assert disclaimer.first_run_banner(home=tmp) == ""
+
+
+def test_disclaimer_failure_to_write_is_not_an_error():
+    """写不进去（只读环境）不算失败：免责照样打印，只是每次再念一遍。"""
+    from checkup_ledger import disclaimer
+
+    # 指向一个不可能写入的路径（非法字符使 open 必失败）
+    unwritable = os.path.join("\0-invalid", "accepted")
+    assert disclaimer.mark_accepted(home=unwritable) is False, "写入失败未被如实返回"
+    assert disclaimer.needs_disclaimer(home=unwritable), "写入失败后仍报已接受"
+
+
+def test_disclaimer_banner_text_carries_the_required_statements():
+    """免责文本必须含四件事：非医疗器械 / 机械比较 / LIS 为准 / 零上传。"""
+    from checkup_ledger import disclaimer
+
+    text = disclaimer.DISCLAIMER_TEXT
+    for keyword in ("不是医疗器械", "机械比较", "LIS", "不联网"):
+        assert keyword in text, "免责文本缺关键表述：%s" % keyword
+
+
+def test_cli_first_run_disclaimer_fires_on_real_entry_path():
+    """**真实入口**（`argv is None`）必须也能触发首启免责。
+
+    这条挡的是实测抓到的一个真缺陷：`main()` 从 `python -m` / 裸 console script
+    进来时 `argv` 是 `None`，而初版实现写成 `if not argv: return`——于是
+    "用户真的敲了 ledger"被读成"没有参数"，免责**在真实入口永不打印**；
+    而单测里显式传 `["ledger", ...]` 会通过（缺陷只在真实通路暴露）。
+    故这里显式测 `argv=None` + 打桩 `sys.argv`。
+    """
+    import tempfile
+    from unittest import mock
+
+    from checkup_ledger import cli
+
+    with tempfile.TemporaryDirectory() as tmp:
+        accepted = os.path.join(tmp, "accepted")
+        with mock.patch.dict(os.environ, {"CHECKUP_LEDGER_ACCEPTED": accepted}):
+            with mock.patch.object(cli.sys, "argv", ["checkup-ledger", "ledger", "--db", os.path.join(tmp, "n.db")]):
+                # argv=None（真实入口形态）→ 应回落 sys.argv[1:] 并触发免责
+                code = cli.main(None)
+        assert code in (0, 1), "真实入口路径异常退出：%s" % code
+        assert os.path.isfile(accepted), (
+            "argv=None 时首启免责未落标记（真实入口漏触发——免责永远不会打印）"
+        )
+
+
+def test_cli_first_run_disclaimer_skips_self_check_commands():
+    """自检类命令（version/selftest/bench/indicators）**不**打印免责（免得淹没 CI 输出）。"""
+    import tempfile
+    from unittest import mock
+
+    from checkup_ledger import cli
+
+    with tempfile.TemporaryDirectory() as tmp:
+        accepted = os.path.join(tmp, "accepted")
+        with mock.patch.dict(os.environ, {"CHECKUP_LEDGER_ACCEPTED": accepted}):
+            with mock.patch.object(cli.sys, "argv", ["checkup-ledger", "selftest"]):
+                cli.main(None)
+        assert not os.path.isfile(accepted), "自检类命令触发了免责（会淹没 CI 输出）"
+
