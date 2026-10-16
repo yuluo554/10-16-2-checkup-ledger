@@ -1,0 +1,115 @@
+"""统一中间表示（IR）。
+
+全链路只有四个 dataclass，两侧输入（PDF 文本层 / OCR）都归约到 `RawLine`，
+后续层只认这几个类型——比对问题因此变成结构化对齐。
+
+分层：本模块是纯数据定义，不 import 任何 I/O。
+"""
+
+from dataclasses import dataclass, field
+from typing import List, Optional
+
+# ---- 判定四态（口径见 data/README.md 第五节第 1/2 条）----
+FLAG_HIGH = "high"
+FLAG_LOW = "low"
+FLAG_NORMAL = "normal"
+FLAG_NOT_ASSESSED = "not_assessed"  # 拒判：无可用区间，只展示趋势
+
+ALL_FLAGS = (FLAG_HIGH, FLAG_LOW, FLAG_NORMAL, FLAG_NOT_ASSESSED)
+
+# ---- 区间来源三态（三级优先）----
+RANGE_SOURCE_REPORT = "report_printed"  # ① 报告自印区间（最优先）
+RANGE_SOURCE_BUILTIN = "builtin_default"  # ② 内置来源标注默认值
+RANGE_SOURCE_NONE = "none"  # ③ 无区间 → 拒判
+
+ALL_RANGE_SOURCES = (
+    RANGE_SOURCE_REPORT,
+    RANGE_SOURCE_BUILTIN,
+    RANGE_SOURCE_NONE,
+)
+
+# ---- 边界语义 ----
+BOUNDS_CLOSED = "closed"  # [low, high]
+BOUNDS_OPEN = "open"  # (low, high)
+
+ALL_BOUNDS = (BOUNDS_CLOSED, BOUNDS_OPEN)
+
+
+@dataclass(frozen=True)
+class Note:
+    """显式注记：把"没看到 / 看到了但没抽到 / 认不出"说出来，不静默丢。"""
+
+    code: str
+    message: str
+    count: int = 1
+
+
+@dataclass(frozen=True)
+class RawLine:
+    """模块① 产出：行级草稿。只做抽取，不做任何数值语义判断。"""
+
+    page: int
+    line_no: int
+    text: str
+    confidence: float
+    source_file: str
+
+
+@dataclass(frozen=True)
+class RefRange:
+    """参考区间。`source` 记录它从哪来（三级优先的依据）。"""
+
+    low: Optional[float]
+    high: Optional[float]
+    bounds: str = BOUNDS_CLOSED
+    source: str = RANGE_SOURCE_NONE
+
+
+@dataclass(frozen=True)
+class Measurement:
+    """模块② 产出：规范化后的单条指标记录。"""
+
+    canonical_name: str
+    raw_name: str
+    value: float
+    unit: str
+    raw_unit: str = ""
+    ref_range_printed: Optional[RefRange] = None  # 报告自印区间（可空）
+    line_ref: Optional[RawLine] = None
+    reviewed: bool = True  # 低置信行复核后才为 True
+
+
+@dataclass(frozen=True)
+class Judged:
+    """模块③ 产出：判定结果。只含事实数值与标记，不含任何解读。"""
+
+    measurement: Measurement
+    flag: str
+    range_used: RefRange
+    range_source: str
+
+
+@dataclass(frozen=True)
+class TrendPoint:
+    """跨日期的同指标变化。只陈述事实幅度。"""
+
+    canonical_name: str
+    date: str
+    value: float
+    delta: Optional[float] = None
+    delta_pct: Optional[float] = None
+
+
+@dataclass
+class IngestResult:
+    lines: List[RawLine] = field(default_factory=list)
+    engine: str = ""
+    pending_review: List[RawLine] = field(default_factory=list)
+    notes: List[Note] = field(default_factory=list)
+
+
+@dataclass
+class NormalizeResult:
+    measurements: List[Measurement] = field(default_factory=list)
+    pending_mapping: List[object] = field(default_factory=list)
+    notes: List[Note] = field(default_factory=list)

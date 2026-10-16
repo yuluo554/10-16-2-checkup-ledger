@@ -1,0 +1,156 @@
+# 内置区间知识库（随包白名单数据）· schema_version 1
+#
+# 用途：仅在某行报告**未印参考区间**时作为兜底默认值参与 H/L 机械判定。
+# 优先级（口径唯一源 = data/README.md 第五节）：报告自印区间 > 本文件默认值 > 拒判。
+#
+# 纪律：
+#   - 每条必须挂 source.standard（来源分册）与 source.status；
+#   - status: pending = 尚未拿到原文逐条核对 → **不进判定路径**（可靠走"拒判"，这是设计内行为）；
+#   - status: verified 时 source.evidence 必填（核对渠道 + 日期）；
+#   - 区间数值只在本文件定义一次，源码中不得出现第二份（零字面量门禁守）。
+#
+# 来源分册编号沿用 LabLens（yang-rz-602/lablens）已标注的 WS/T 404/405 分册；
+# WS/T 404/405 全文不可直连（卫健委 wsbz 平台 412/502、工标网全文付费），
+# 故本文件条目**逐条如实标 pending**，待拿到原文核对后升级 verified。
+
+schema_version: 1
+updated: 2026-10-16
+disclaimer: >
+  本字典仅用于检验结果的机械判定（H/L），不构成诊断依据。
+  各医疗机构应以本机构 LIS 打印区间为最终准绳；本字典区间为常见项默认值，以报告单和医嘱为准。
+
+indicators:
+  # ---- 血常规 ----
+  - canonical_name: WBC
+    display_name: 白细胞计数
+    aliases: [白细胞计数, 白细胞, WBC, WBC计数]
+    unit: 10^9/L
+    unit_aliases: [10^9/L, 10E9/L, ×10^9/L, 10*9/L]
+    default_range: { low: 3.5, high: 9.5 }
+    applies_to: { sex: any }
+    source:
+      standard: WS/T 405-2012
+      status: pending
+      evidence: 待核对（渠道：卫健委 wsbz 平台 412/502 反爬阻断，见 data/README.md）
+      note: 常见项默认值；以报告单和医嘱为准
+
+  - canonical_name: HGB
+    display_name: 血红蛋白
+    aliases: [血红蛋白, HGB, Hb, 血色素]
+    unit: g/L
+    unit_aliases: [g/L, g/l, G/L]
+    default_range: { low: 130, high: 175 }
+    applies_to: { sex: male }   # 男/女区间不同，必须显式写主体；基准须有"不该命中"的反向样例
+    source:
+      standard: WS/T 405-2012
+      status: pending
+      evidence: 待核对（渠道：卫健委 wsbz 平台 412/502 反爬阻断，见 data/README.md）
+      note: 常见项默认值；以报告单和医嘱为准
+
+  - canonical_name: PLT
+    display_name: 血小板计数
+    aliases: [血小板计数, 血小板, PLT]
+    unit: 10^9/L
+    unit_aliases: [10^9/L, 10E9/L, ×10^9/L]
+    default_range: { low: 125, high: 350 }
+    applies_to: { sex: any }
+    source:
+      standard: WS/T 405-2012
+      status: pending
+      evidence: 待核对（渠道：卫健委 wsbz 平台 412/502 反爬阻断，见 data/README.md）
+      note: 常见项默认值；以报告单和医嘱为准
+
+  # ---- 肝功能 ----
+  - canonical_name: ALT
+    display_name: 丙氨酸氨基转移酶
+    aliases: [谷丙转氨酶, ALT, GPT, 丙氨酸氨基转移酶]
+    unit: U/L
+    unit_aliases: [U/L, IU/L, u/l, U/L(速率法)]
+    default_range: { low: 9, high: 50 }
+    applies_to: { sex: any }
+    source:
+      standard: WS/T 404.1-2012
+      status: pending
+      evidence: 待核对（渠道：卫健委 wsbz 平台 412/502 反爬阻断，见 data/README.md）
+      note: 常见项默认值；以报告单和医嘱为准
+
+  - canonical_name: AST
+    display_name: 天门冬氨酸氨基转移酶
+    aliases: [谷草转氨酶, AST, GOT, 天门冬氨酸氨基转移酶]
+    unit: U/L
+    unit_aliases: [U/L, IU/L, u/l]
+    default_range: { low: 15, high: 40 }
+    applies_to: { sex: any }
+    source:
+      standard: WS/T 404.1-2012
+      status: pending
+      evidence: 待核对（渠道：卫健委 wsbz 平台 412/502 反爬阻断，见 data/README.md）
+      note: 常见项默认值；以报告单和医嘱为准
+
+  # ---- 血脂 ----
+  - canonical_name: TC
+    display_name: 总胆固醇
+    aliases: [总胆固醇, 胆固醇, TC, CHOL]
+    unit: mmol/L
+    unit_aliases: [mmol/L, mM]
+    default_range: { low: null, high: 5.2 }   # 单侧上限：对缺失侧不设限
+    applies_to: { sex: any }
+    source:
+      standard: WS/T 404.1-2012
+      status: pending
+      evidence: 待核对（渠道：卫健委 wsbz 平台 412/502 反爬阻断，见 data/README.md）
+      note: 常见项默认值；以报告单和医嘱为准
+
+  - canonical_name: TG
+    display_name: 甘油三酯
+    aliases: [甘油三酯, 三酰甘油, TG]
+    unit: mmol/L
+    unit_aliases: [mmol/L, mM]
+    default_range: { low: null, high: 1.7 }
+    applies_to: { sex: any }
+    source:
+      standard: WS/T 404.1-2012
+      status: pending
+      evidence: 待核对（渠道：卫健委 wsbz 平台 412/502 反爬阻断，见 data/README.md）
+      note: 常见项默认值；以报告单和医嘱为准
+
+  # ---- 肾功能 ----
+  - canonical_name: CREA
+    display_name: 肌酐
+    aliases: [肌酐, CREA, Cr, 肌酸酐]
+    unit: umol/L
+    unit_aliases: [umol/L, μmol/L, umol/l]
+    default_range: { low: 57, high: 97 }
+    applies_to: { sex: any }
+    source:
+      standard: WS/T 404.5-2012
+      status: pending
+      evidence: 待核对（渠道：卫健委 wsbz 平台 412/502 反爬阻断，见 data/README.md）
+      note: 常见项默认值；以报告单和医嘱为准
+
+  - canonical_name: UA
+    display_name: 尿酸
+    aliases: [尿酸, UA, 血尿酸]
+    unit: umol/L
+    unit_aliases: [umol/L, μmol/L]
+    default_range: { low: 208, high: 428 }
+    applies_to: { sex: male }
+    source:
+      standard: WS/T 404.5-2012
+      status: pending
+      evidence: 待核对（渠道：卫健委 wsbz 平台 412/502 反爬阻断，见 data/README.md）
+      note: 常见项默认值；以报告单和医嘱为准
+
+  # ---- 血糖 ----
+  - canonical_name: GLU
+    display_name: 葡萄糖
+    aliases: [葡萄糖, 血糖, GLU, GLU-空腹, 空腹血糖]
+    unit: mmol/L
+    unit_aliases: [mmol/L, mM]
+    default_range: { low: 3.9, high: 6.1 }
+    applies_to: { sex: any }
+    source:
+      standard: WS/T 404.1-2012
+      status: pending
+      evidence: 待核对（渠道：卫健委 wsbz 平台 412/502 反爬阻断，见 data/README.md）
+      note: 常见项默认值；以报告单和医嘱为准

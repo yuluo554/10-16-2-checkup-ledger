@@ -5,9 +5,12 @@ __pycache__/
 build/
 dist/
 .eggs/
-.venv/
-venv/
+# 虚拟环境：用通配覆盖 .venv / .venv-clean / venv-312 等各种命名
+# （只写死 .venv/ 会漏掉临时验证用的 .venv-clean/，门禁扫描面会扫进第三方包）
+.venv*/
+venv*/
 env/
+.eggs/
 
 # Environment / secrets
 .env

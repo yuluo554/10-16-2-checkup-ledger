@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "checkup-ledger"
+version = "0.1.0"
+description = "体检台账工作台：把历年体检报告录成个人检验指标台账，做纵向趋势与按参考区间的异常标记。纯本地、零上传、确定性判定。"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "yuluo554" }]
+keywords = ["health-checkup", "lab-results", "local-first", "privacy", "ledger"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.12",
+  "Operating System :: OS Independent",
+  "Topic :: Utilities",
+]
+# 核心判定链零第三方依赖；仅内置区间知识库需要 YAML 解析。
+dependencies = ["PyYAML>=6.0"]
+
+[project.urls]
+Homepage = "https://github.com/yuluo554/10-16-2-checkup-ledger"
+
+[project.optional-dependencies]
+# 测试期依赖：CI 与干净环境一律用本集合
+dev = ["pytest>=7"]
+# PDF 文本层直读（模块①）
+pdf = ["pdfplumber>=0.11"]
+# 扫描件 OCR 兜底（模块①）
+ocr = ["rapidocr-onnxruntime>=1.3"]
+# 冻结构建（M5）
+freeze = ["pyinstaller>=6.0"]
+
+[project.scripts]
+checkup-ledger = "checkup_ledger.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+# 随包数据白名单：运行时必需的区间知识库与基准用例（交付物内可达"跑基准自证"）
+checkup_ledger = ["data/*.yaml", "data/*.yml", "benchmark/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

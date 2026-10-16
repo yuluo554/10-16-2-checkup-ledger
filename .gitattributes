@@ -1,0 +1,24 @@
+# 源码行尾归一（跨平台"逐字节一致"的前提）
+* text=auto eol=lf
+
+# 二进制 / 冻结快照：禁止行尾与编码归一化
+# 被台账登记过 sha256 的快照若被克隆时改写字节，哈希必失配（git status 看不出来）
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+*.onnx binary
+*.zip binary
+*.exe binary
+
+# 冻结产物的字节由生成器决定（ZIP_STORED + create_system=0 + 固定时间戳），
+# 故这些数据文件一律 -text，避免任何人（包括编辑器）擅自改写
+data/samples/** -text
+src/checkup_ledger/data/*.yaml text eol=lf
+
+# Windows 脚本
+*.bat text eol=crlf
+*.cmd text eol=crlf

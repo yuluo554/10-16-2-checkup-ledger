@@ -1,0 +1,303 @@
+"""知识库加载与来源门禁：**未挂来源核对的条目不得生效**。
+
+这是"可追溯性"的入口门：光有字段不等于承诺成立——若引擎会把缺来源的条目
+照常加载并参与判定，报告就带着不可核证的结论出去了。判据 = "这条条目如果
+来源丢了，它是**静默照常判**，还是**进不了引擎并显式报出**？"
+"""
+
+import os
+import tempfile
+
+import pytest
+
+from helpers import repo_path, run_cli
+
+from checkup_ledger.loader import (
+    STATUS_PENDING,
+    STATUS_VERIFIED,
+    DisabledEntry,
+    IndicatorDict,
+    KnowledgeError,
+    gate_entry,
+    load_indicators,
+)
+
+INDICATORS = repo_path("src", "checkup_ledger", "data", "indicators.yaml")
+
+
+def _write_yaml(tmp, text):
+    target = os.path.join(tmp, "indicators.yaml")
+    with open(target, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write(text)
+    return target
+
+
+BASE_HEADER = """schema_version: 1
+disclaimer: "\u4ec5\u4f9b\u673a\u68b0\u5224\u5b9a"
+indicators:
+"""
+
+
+# ---------------------------------------------------------------- 门禁：缺来源必拒
+
+
+def test_missing_source_block_is_rejected():
+    raw = {
+        "canonical_name": "ALT",
+        "unit": "U/L",
+        "default_range": {"low": 9, "high": 40},
+    }
+    entry, rejected = gate_entry(raw, 0)
+    assert entry is None
+    assert rejected is not None
+    assert "source" in rejected.reason
+
+
+def test_missing_standard_is_rejected():
+    raw = {
+        "canonical_name": "ALT",
+        "unit": "U/L",
+        "default_range": {"low": 9, "high": 40},
+        "source": {"status": "verified", "evidence": "x"},
+    }
+    entry, rejected = gate_entry(raw, 0)
+    assert entry is None
+    assert "standard" in rejected.reason
+
+
+def test_invalid_status_is_rejected():
+    raw = {
+        "canonical_name": "ALT",
+        "unit": "U/L",
+        "default_range": {"low": 9, "high": 40},
+        "source": {"standard": "WS/T 404.1-2012", "status": "maybe"},
+    }
+    entry, rejected = gate_entry(raw, 0)
+    assert entry is None
+    assert "status" in rejected.reason
+
+
+def test_verified_without_evidence_is_rejected():
+    """verified 却没留核对渠道 → 拒绝（"已核对"必须可指认）。"""
+    raw = {
+        "canonical_name": "ALT",
+        "unit": "U/L",
+        "default_range": {"low": 9, "high": 40},
+        "source": {"standard": "WS/T 404.1-2012", "status": "verified", "evidence": "  "},
+    }
+    entry, rejected = gate_entry(raw, 0)
+    assert entry is None
+    assert "evidence" in rejected.reason
+
+
+def test_missing_canonical_name_is_rejected():
+    raw = {"unit": "U/L", "default_range": {"low": 1, "high": 2},
+           "source": {"standard": "X", "status": "pending"}}
+    entry, rejected = gate_entry(raw, 0)
+    assert entry is None
+    assert "canonical_name" in rejected.reason
+
+
+def test_pending_entry_loads_but_cannot_be_default():
+    """pending 条目可加载（作展示信息），但**不得**进判定路径。"""
+    raw = {
+        "canonical_name": "ALT",
+        "unit": "U/L",
+        "default_range": {"low": 9, "high": 40},
+        "source": {"standard": "WS/T 404.1-2012", "status": "pending", "evidence": ""},
+    }
+    entry, rejected = gate_entry(raw, 0)
+    assert rejected is None
+    assert entry is not None
+    assert entry.status == STATUS_PENDING
+    assert not entry.usable_as_default
+
+
+def test_verified_entry_is_usable():
+    raw = {
+        "canonical_name": "ALT",
+        "unit": "U/L",
+        "default_range": {"low": 9, "high": 40},
+        "source": {"standard": "WS/T 404.1-2012", "status": "verified", "evidence": "wsbz 快照 2026-10-20"},
+    }
+    entry, rejected = gate_entry(raw, 0)
+    assert rejected is None
+    assert entry.usable_as_default
+
+
+def test_verified_defaults_excludes_pending():
+    """判定路径唯一入口只含 verified——这是"pending 不进判定"的机制落点。"""
+    raw = {
+        "canonical_name": "ALT",
+        "unit": "U/L",
+        "default_range": {"low": 9, "high": 40},
+        "source": {"standard": "X", "status": "pending"},
+    }
+    entry, _ = gate_entry(raw, 0)
+    table = IndicatorDict(entries=[entry], disabled=[])
+    assert table.verified_defaults() == {}
+    assert table.by_canonical("ALT") is entry  # 仍可查询（展示用）
+
+
+# ---------------------------------------------------------------- 区间字段校验
+
+
+def test_inverted_range_is_rejected():
+    raw = {
+        "canonical_name": "ALT",
+        "unit": "U/L",
+        "default_range": {"low": 40, "high": 9},
+        "source": {"standard": "X", "status": "pending"},
+    }
+    entry, rejected = gate_entry(raw, 0)
+    assert entry is None
+    assert "高于上限" in rejected.reason
+
+
+def test_bad_bounds_is_rejected():
+    raw = {
+        "canonical_name": "ALT",
+        "unit": "U/L",
+        "default_range": {"low": 9, "high": 40, "bounds": "half-open"},
+        "source": {"standard": "X", "status": "pending"},
+    }
+    entry, rejected = gate_entry(raw, 0)
+    assert entry is None
+    assert "bounds" in rejected.reason
+
+
+def test_bad_sex_is_rejected():
+    raw = {
+        "canonical_name": "HGB",
+        "unit": "g/L",
+        "default_range": {"low": 130, "high": 175},
+        "applies_to": {"sex": "unknown"},
+        "source": {"standard": "X", "status": "pending"},
+    }
+    entry, rejected = gate_entry(raw, 0)
+    assert entry is None
+    assert "sex" in rejected.reason
+
+
+# ---------------------------------------------------------------- 整库加载
+
+
+def test_load_real_knowledge_base():
+    table = load_indicators(INDICATORS)
+    assert table.schema_version == 1
+    assert table.entries, "知识库没有任何可加载条目"
+    assert table.disclaimer.strip(), "知识库缺免责声明（判定产物要带它）"
+
+
+def test_all_loaded_entries_carry_source():
+    """加载成功的每一条都必须挂来源分册——这是本门存在的理由。"""
+    table = load_indicators(INDICATORS)
+    for entry in table.entries:
+        assert entry.source_standard, "条目 %s 缺来源分册" % entry.canonical_name
+        assert entry.status in (STATUS_PENDING, STATUS_VERIFIED), "条目 %s status 非法" % entry.canonical_name
+
+
+def test_real_knowledge_base_covers_required_domains():
+    """覆盖度：五指标域各至少一项（plan/04 覆盖度门槛）。"""
+    table = load_indicators(INDICATORS)
+    names = {entry.canonical_name for entry in table.entries}
+    required = {"WBC", "HGB", "PLT", "ALT", "AST", "TC", "TG", "CREA", "UA", "GLU"}
+    missing = sorted(required - names)
+    assert not missing, "知识库缺这些域的代表项：%s" % missing
+
+
+def test_duplicate_canonical_name_is_disabled():
+    text = BASE_HEADER + """
+  - canonical_name: ALT
+    unit: U/L
+    default_range: { low: 9, high: 40 }
+    source: { standard: X, status: pending }
+  - canonical_name: ALT
+    unit: U/L
+    default_range: { low: 9, high: 50 }
+    source: { standard: X, status: pending }
+"""
+    with tempfile.TemporaryDirectory() as tmp:
+        table = load_indicators(_write_yaml(tmp, text))
+    assert len(table.entries) == 1
+    assert any("重复" in item.reason for item in table.disabled)
+
+
+def test_unsupported_schema_version_is_rejected():
+    text = "schema_version: 99\ndisclaimer: x\nindicators:\n"
+    with tempfile.TemporaryDirectory() as tmp:
+        with pytest.raises(KnowledgeError):
+            load_indicators(_write_yaml(tmp, text))
+
+
+def test_missing_file_is_not_silently_empty():
+    """文件缺失 → 报错，**不静默当空库**（空库会让一切走拒判，看起来"一切正常"）。"""
+    with pytest.raises(KnowledgeError):
+        load_indicators(repo_path("src", "checkup_ledger", "data", "no-such-file.yaml"))
+
+
+def test_malformed_yaml_is_reported():
+    with tempfile.TemporaryDirectory() as tmp:
+        with pytest.raises(KnowledgeError):
+            load_indicators(_write_yaml(tmp, "schema_version: 1\nindicators: [ {unclosed\n"))
+
+
+def test_empty_indicators_list_is_rejected():
+    with tempfile.TemporaryDirectory() as tmp:
+        with pytest.raises(KnowledgeError):
+            load_indicators(_write_yaml(tmp, "schema_version: 1\ndisclaimer: x\nindicators: []\n"))
+
+
+def test_disabled_entries_are_reported_not_dropped():
+    """被拦条目必须显式进"未启用清单"——静默丢弃 = 报告里看不出缺了什么。"""
+    text = BASE_HEADER + """
+  - canonical_name: GOOD
+    unit: U/L
+    default_range: { low: 1, high: 2 }
+    source: { standard: X, status: pending }
+  - canonical_name: BAD
+    unit: U/L
+    default_range: { low: 1, high: 2 }
+    source: { status: pending }
+"""
+    with tempfile.TemporaryDirectory() as tmp:
+        table = load_indicators(_write_yaml(tmp, text))
+    assert [e.canonical_name for e in table.entries] == ["GOOD"]
+    assert [d.canonical_name for d in table.disabled] == ["BAD"]
+    assert table.disabled[0].reason
+
+
+# ---------------------------------------------------------------- CLI 面
+
+
+def test_cli_indicators_lists_disabled_section():
+    code, out, _err = run_cli(["indicators"])
+    assert code == 0
+    assert "\u672a\u542f\u7528\u6761\u76ee" in out
+
+
+def test_cli_indicators_reports_pending_as_not_usable():
+    """当前知识库条目一律 pending → CLI 必须如实标"待核对(不进判定)"。"""
+    code, out, _err = run_cli(["indicators"])
+    assert code == 0
+    assert "\u5f85\u6838\u5bf9" in out
+
+
+def test_cli_indicators_json_is_deterministic():
+    import json
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        first = os.path.join(tmp, "a.json")
+        second = os.path.join(tmp, "b.json")
+        run_cli(["indicators", "--json", first])
+        run_cli(["indicators", "--json", second])
+        with open(first, "r", encoding="utf-8") as handle_a, open(second, "r", encoding="utf-8") as handle_b:
+            assert json.load(handle_a) == json.load(handle_b)
+
+
+def test_cli_indicators_missing_data_dir_reports_findings():
+    """数据目录解析失败 → exit 1（检出问题），不是用法错误。"""
+    code, _out, err = run_cli(["indicators", "--data-dir", os.path.join(os.sep, "no-such-dir-xyz")])
+    assert code == 1
+    assert "\u6570\u636e\u76ee\u5f55" in err or "data" in err.lower()

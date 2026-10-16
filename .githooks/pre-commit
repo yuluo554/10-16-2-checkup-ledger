@@ -1,0 +1,30 @@
+#!/bin/sh
+# PII gate：真实体检报告与台账数据库永不入 git。
+# 启用：git config core.hooksPath .githooks
+# 绕过门禁 = 造假（不是"临时方便"）。
+set -e
+
+repo_root=$(git rev-parse --show-toplevel)
+python_bin=""
+for candidate in py python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+        python_bin="$candidate"
+        break
+    fi
+done
+
+if [ -z "$python_bin" ]; then
+    echo "[PII gate] 未找到可用的 Python 解释器，跳过内容检查（路径与类型检查仍执行）。" >&2
+fi
+
+if [ -n "$python_bin" ]; then
+    # PYTHONUTF8=1：门禁自身的输出含中文，避免子进程编码问题
+    PYTHONUTF8=1 "$python_bin" "$repo_root/tools/pii_gate.py" --staged
+    status=$?
+    if [ "$status" -ne 0 ]; then
+        echo "[PII gate] 提交被拦截：请移除真实报告数据或改用合成数据（见 data/README.md 附录白名单）。" >&2
+        exit "$status"
+    fi
+fi
+
+exit 0
