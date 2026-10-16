@@ -184,7 +184,7 @@ git config core.hooksPath .githooks
 - **Windows 中文控制台**：程序入口会探测 stdio 编码，对 `cp1252`/`ascii` 这类编不动中文的流自动 reconfigure 为 UTF-8；`cp936`（中文 Windows 默认）保持不动。若使用 `python -m` 形式且输出乱码，可显式 `py -X utf8 -m checkup_ledger …`。
 - **`python` 是商店占位符**：用 `py` 代替。
 - **代理污染 pip**：若 pip 报连不上代理，用 `NO_PROXY="*" python -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple <pkg>`。
-- PDF / OCR 依赖（`[pdf]` / `[ocr]`）为可选重件，仅在对应模块落地后按需安装。
+- PDF / OCR 依赖（`[pdf]` / `[ocr]`）为可选重件，**模块① 已落地**，按需安装即可用（未装时对应命令走 `exit 3` 契约）。`[ocr]` 的 ONNX 权重**随 wheel 内嵌**，`pip install` 即完成，无需另外下载。
 
 ---
 
