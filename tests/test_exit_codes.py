@@ -116,6 +116,30 @@ def test_not_ready_module_list_excludes_landed_module():
         assert name in _NOT_READY_MODULES, "尚未落地的模块 %s 被移出拦截名单" % name
 
 
+def test_not_ready_constant_is_retained_until_last_module_lands():
+    """**部分退役**是 M2 的有意决策，不是"忘了删常量"。
+
+    待办原文写的是"本模块的拦截点整项退役"。实现时按"触发点逐个退役"处置：
+    常量保留（其余四个模块仍在使用它），只把已落地模块移出拦截名单。
+    理由：若提前删常量，其余未落地模块只能借用 `EXIT_USAGE`，那会把"阶段未就绪"
+    读成"用法错误"——一个语义明确的码被换成一个语义错误的码，是**退步**。
+
+    这条断言的作用：让后来者知道"常量还在"是**设计内行为**，
+    并钉住"只有全部模块落地后才可删"的判据（那时本测试也要一并改）。
+    """
+    import checkup_ledger.exit_codes as mod
+    from checkup_ledger.cli import _NOT_READY_MODULES
+
+    if _NOT_READY_MODULES:
+        assert hasattr(mod, "EXIT_NOT_READY"), (
+            "仍有模块未落地，却已删除 EXIT_NOT_READY——它们只能借用用法错误码（语义退步）"
+        )
+    else:  # pragma: no cover - 首期全部落地后才走到这里（M4）
+        assert not hasattr(mod, "EXIT_NOT_READY"), (
+            "首期模块全部落地，EXIT_NOT_READY 应整项退役（连带本测试一并改）"
+        )
+
+
 def test_not_ready_does_not_fake_empty_result():
     """未就绪路径不得打印任何看起来像正常结果的表格/计数。"""
     _code, out, _err = run_cli(["ledger"])
