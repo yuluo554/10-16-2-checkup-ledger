@@ -1,0 +1,14 @@
+{
+  "case_id": "ingest-pdf-per-char",
+  "expected_lines": [
+    "ALT 51 U/L 9-50",
+    "AST 27.5 U/L 15-40",
+    "HGB 152.5 g/L 130-175",
+    "PLT 124 10^9/L 125-350"
+  ],
+  "note": "期望行文本（由用例的行定义导出；回归测试验装配器能否复现它）",
+  "tags": [
+    "ingest:pdf_text_layer",
+    "trap:pseudo_space"
+  ]
+}

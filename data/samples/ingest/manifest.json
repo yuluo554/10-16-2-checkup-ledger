@@ -1,0 +1,65 @@
+{
+  "cases": [
+    {
+      "case_id": "ingest-pdf-padded",
+      "file": "data/samples/ingest/pdf/ingest-pdf-padded.pdf",
+      "kind": "pdf",
+      "rows": 4,
+      "tags": [
+        "ingest:pdf_text_layer",
+        "trap:padding_normalized"
+      ],
+      "truth": "data/samples/ingest/truth/ingest-pdf-padded.truth.json"
+    },
+    {
+      "case_id": "ingest-pdf-per-char",
+      "file": "data/samples/ingest/pdf/ingest-pdf-per-char.pdf",
+      "kind": "pdf",
+      "rows": 4,
+      "tags": [
+        "ingest:pdf_text_layer",
+        "trap:pseudo_space"
+      ],
+      "truth": "data/samples/ingest/truth/ingest-pdf-per-char.truth.json"
+    },
+    {
+      "case_id": "ingest-pdf-plain",
+      "file": "data/samples/ingest/pdf/ingest-pdf-plain.pdf",
+      "kind": "pdf",
+      "rows": 4,
+      "tags": [
+        "ingest:pdf_text_layer",
+        "layout:plain"
+      ],
+      "truth": "data/samples/ingest/truth/ingest-pdf-plain.truth.json"
+    },
+    {
+      "case_id": "ingest-scan-clean",
+      "file": "data/samples/ingest/scan/ingest-scan-clean.png",
+      "kind": "scan",
+      "rows": 4,
+      "tags": [
+        "ingest:ocr",
+        "confidence:above_threshold"
+      ],
+      "truth": "data/samples/ingest/truth/ingest-scan-clean.truth.json"
+    },
+    {
+      "case_id": "ingest-scan-degraded",
+      "file": "data/samples/ingest/scan/ingest-scan-degraded.png",
+      "kind": "scan",
+      "rows": 4,
+      "tags": [
+        "ingest:ocr",
+        "confidence:below_threshold",
+        "review:pending_not_stored"
+      ],
+      "truth": "data/samples/ingest/truth/ingest-scan-degraded.truth.json"
+    }
+  ],
+  "coverage_note": "本夹具为**抽样覆盖，非穷举**：三种 PDF 形态 + 一份降质扫描件，覆盖伪空格/补白归一/OCR 兜底/低置信复核四条路径。",
+  "generator_seed": 20261016,
+  "ocr_threshold": 0.8,
+  "ocr_threshold_source": "src/checkup_ledger/data/config.yaml",
+  "schema_version": 1
+}

@@ -45,12 +45,29 @@ YAML_PATH = "src/checkup_ledger/data/indicators.yaml"
 # 结构常数豁免（口径写死在 plan/04 第二节第 3 条）
 STRUCTURAL_EXEMPT = frozenset({0.0, 1.0, 2.0, -1.0})
 
-# 文件级例外：**只有一条**，且必须写清理由。清单由测试锁死（改这里必须同步改测试）。
+# 文件级例外：**逐条登记，且必须写清理由**。清单由测试锁死（改这里必须同步改测试）。
+#
+# 两类例外，都是"数值巧合"而非"第二处定义"：
+#
+# ① `tools/pii_gate.py`：PII 模式里手机号的位数与知识库两个区间端点数值巧合相同。
+#    它们是 PII 模式的**结构位数**，与检验参考区间毫无关系。
+# ② `tools/fixtures/scanrender.py`：笔画字体的**字形设计网格**（4×6 盒内的十分位
+#    坐标）。若干坐标值恰与知识库区间端点同值，但它们是**字体几何**——只被夹具
+#    渲染器消费以生成 PNG 像素，**不参与任何判定**，也不可能被误读成"权威区间口径"
+#    （读者看到的是折线坐标，不是数值区间）。与 ① 同类：为一个巧合去重排整个字形表，
+#    是让门牵着被测代码走。
+#
+# 新增例外必须同时更新 `test_exempt_files_are_exactly_as_declared`。
 EXEMPT_FILES = {
     "tools/pii_gate.py": (
         "PII 模式里手机号的位数（正则重复次数与提示文案里的位数）与知识库两个区间端点"
         "数值巧合相同。它们是 PII 模式的**结构位数**，与检验参考区间毫无关系；"
         "为一个巧合去改写已通过测试的安全正则，是让门牵着被测代码走。"
+    ),
+    "tools/fixtures/scanrender.py": (
+        "笔画字体的字形设计网格坐标（十分位）与知识库若干区间端点数值巧合相同。"
+        "它们是**字体几何**（折线控制点），只用于渲染扫描件像素，不参与任何判定；"
+        "与 pii_gate 的结构位数属同一类数值巧合。"
     ),
 }
 
@@ -188,11 +205,13 @@ def test_exempt_files_are_exactly_as_declared():
 
     这条同时是"清单不许悄悄长大"的锁：新增例外必须显式改 `EXEMPT_FILES` 与本断言。
     """
-    assert list(EXEMPT_FILES) == ["tools/pii_gate.py"], (
+    assert sorted(EXEMPT_FILES) == ["tools/fixtures/scanrender.py", "tools/pii_gate.py"], (
         "豁免清单与声明不符——新增豁免必须同时更新本断言"
     )
     reason = EXEMPT_FILES["tools/pii_gate.py"]
     assert "结构位数" in reason and "巧合" in reason, "豁免理由缺失关键说明"
+    reason = EXEMPT_FILES["tools/fixtures/scanrender.py"]
+    assert "字形" in reason and "巧合" in reason, "豁免理由缺失关键说明"
 
 
 def test_exempt_files_all_exist_and_carry_reasons():

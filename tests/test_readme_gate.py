@@ -174,10 +174,27 @@ def _collect_imports(path):
     return names
 
 
+def _all_declared_import_names():
+    """pyproject 声明的**全部** extras 的导入名（dev + 用户可选能力）。
+
+    测试会用到可选 extras（如 `[ocr]` 的 `rapidocr_onnxruntime`），且**只在函数体内
+    import、并自行 try/except 跳过**——这是合法用法，故面 3 的落点集合应含全部 extras，
+    而不是只看 dev（只看 dev 会把合法的可选依赖误判成"未声明"）。
+    """
+    names = set()
+    for specs in _declared_extras().values():
+        for spec in specs:
+            names.add(_distribution_to_import(spec))
+    return names
+
+
+# 仓库脚本模块：不是安装面的一部分，由 `tests/conftest.py` 把 `tools/` 加进 sys.path
+REPO_SCRIPT_MODULES = frozenset({"tools", "fixtures", "helpers"})
+
+
 def test_face3_tests_imports_resolve_to_declared_places():
-    """tests/ 真 import 的每个顶层库，必须落在：stdlib / dev extras / 本包 / tools 注入。"""
-    dev_extra = _declared_extras()["dev"]
-    dev_names = {_distribution_to_import(name) for name in dev_extra}
+    """tests/ 真 import 的每个顶层库，必须落在：stdlib / 任一 extras / 本包 / 仓库脚本。"""
+    declared = _all_declared_import_names()
 
     unresolved = []
     collected = 0
@@ -188,15 +205,13 @@ def test_face3_tests_imports_resolve_to_declared_places():
             collected += 1
             if name in STDLIB_FROZEN:
                 continue
-            if name == PACKAGE_ROOT or name in ("helpers",):
+            if name == PACKAGE_ROOT:
                 continue
-            if name in dev_names:
+            if name in REPO_SCRIPT_MODULES:
                 continue
-            if name == "checkup_ledger":
+            if name in declared:
                 continue
             if name in ("yaml",):  # 核心依赖，同时声明在 dependencies
-                continue
-            if name in ("tools",):
                 continue
             unresolved.append("%s imports %s" % (rel, name))
 
@@ -308,18 +323,32 @@ def test_face4_optional_extras_are_documented_in_readme():
 
 
 def test_face4_dev_extra_covers_test_time_deps():
-    """测试套件真 import 的第三方库都要在 dev extras 里。"""
+    """测试套件真 import 的第三方库都要在 dev extras 里。
+
+    **例外**：可选 extras（`[pdf]`/`[ocr]`）里的库可以出现在测试里，前提是它们
+    只在函数体内 import 并自行跳过（由 `test_face3_pdf_and_ocr_deps_are_not_module_level_in_tests`
+    守住"不做模块级 import"）。把可选依赖也塞进 `[dev]` 会让"只装 dev"的 CI
+    拉进 14MB 的 OCR 轮子——那是让测试面与交付面耦合。
+    """
     dev = _declared_extras().get("dev", [])
     dev_imports = {_distribution_to_import(spec) for spec in dev}
+    optional_imports = {
+        _distribution_to_import(spec)
+        for name, specs in _declared_extras().items()
+        if name not in ("dev", "freeze")
+        for spec in specs
+    }
     third_party_in_tests = set()
     for rel in iter_python_files():
         if not rel.startswith("tests/"):
             continue
         for name in _collect_imports(repo_path(rel)):
-            if name in STDLIB_FROZEN or name in (PACKAGE_ROOT, "helpers", "tools"):
+            if name in STDLIB_FROZEN or name in (PACKAGE_ROOT,) or name in REPO_SCRIPT_MODULES:
                 continue
             if name == "yaml":
                 continue  # 核心依赖（dependencies 已声明），非测试期专有
+            if name in optional_imports:
+                continue  # 可选 extras：函数体内 import + 自行跳过（由面 3 的另一条守）
             third_party_in_tests.add(name)
     missing = sorted(name for name in third_party_in_tests if name not in dev_imports)
     assert not missing, "测试用的第三方库未在 dev extras 中声明：%s" % missing
@@ -374,11 +403,9 @@ def test_frozen_stdlib_list_covers_actually_used_stdlib():
         if rel.startswith("tests/"):
             used |= _collect_imports(repo_path(rel))
     suspects = sorted(
-        name for name in used if name not in STDLIB_FROZEN and name not in ("checkup_ledger", "helpers", "tools")
+        name for name in used if name not in STDLIB_FROZEN and name not in (PACKAGE_ROOT,) and name not in REPO_SCRIPT_MODULES
     )
-    third_party_ok = set()
-    for spec in _declared_extras().get("dev", []):
-        third_party_ok.add(_distribution_to_import(spec))
+    third_party_ok = _all_declared_import_names()
     third_party_ok |= {"yaml"}  # 核心依赖
     stray = [name for name in suspects if name not in third_party_ok]
     assert not stray, "这些 import 既不在 stdlib 冻结名单、也不在 dev extras：%s（若是标准库请补进名单）" % stray

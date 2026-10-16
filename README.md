@@ -47,6 +47,13 @@ python -m pytest
 
 > Windows 上若 `python` 是商店占位符，用 `py` 代替（`py -m pip install -e .`）。
 
+可选能力（按需安装，未装时对应命令走 `exit 3` 契约）：
+
+```bash
+python -m pip install -e ".[pdf]"    # PDF 文本层直读（模块①）
+python -m pip install -e ".[ocr]"    # 扫描件 OCR 兜底（模块①，ONNX CPU 本地推理）
+```
+
 ### 命令速查
 
 ```bash
@@ -57,7 +64,20 @@ checkup-ledger bench                        # 跑判定基准（两层：规则�
 checkup-ledger bench --only 边界语义         # 只跑一个套件（其余标注"未启用"，不计入通过数）
 checkup-ledger bench --only 样例真值回归      # 样例驱动层套件（读 data/samples/）
 checkup-ledger bench --probe-fault          # 可证伪探活：注入已知缺陷，基准必须报未达标
+checkup-ledger ingest 报告.pdf               # 模块① 输入层：抽取行级草稿（PDF 文本层）
+checkup-ledger ingest 扫描件.png             # 扫描件走 OCR 兜底（需 [ocr]）
+checkup-ledger ingest 报告.pdf --json out.json
 ```
+
+**输入层（模块①）**：把 PDF 文本层 / 扫描件读成**行级草稿**（原始行 + 页码 + 行置信度），
+**只做抽取、不做任何数值语义判断**。两条纪律：
+
+- **低置信行强制人工复核**：`confidence < ocr_threshold` 的行进 `pending_review`，
+  **未经复核确认不得向下传递**（`--reviews` 传复核留痕才放行）；
+- **阈值单点定义在配置**（`src/checkup_ledger/data/config.yaml` 的 `ocr_threshold`），
+  **代码零默认值**——缺配置即报错，不静默取 0.8 之类的字面值。
+
+缺 `[pdf]` / `[ocr]` 时走 **`exit 3`**（缺依赖契约），**不裸抛 `ImportError`**。
 
 三条通路等价，任选其一：
 
@@ -85,6 +105,11 @@ py -X utf8 -m checkup_ledger selftest       # ③ Windows 中文控制台推荐�
 | `2` | 用法错误：未知命令、未知旗标、缺必需参数 |
 | `3` | 缺可选依赖（如未装 `[pdf]` / `[ocr]` 就调用对应能力） |
 | `4` | 阶段未就绪：该模块尚未落地。**显式拦截，不返回伪造的空结果** |
+
+> `4` 的**触发点逐个退役**：模块① 输入层（`ingest`）已落地，**不再走 `exit 4`**
+> （改走真实实现或 `exit 3` 缺依赖）。剩余模块（规范化 / 台账 / 导出 / 报告）落地前
+> 仍走 `4`；首期全部落地后 `4` 整项退役。退役须**四处同步**（常量 / CLI 分派 /
+> 文档 / 测试含防复活断言），少一处即幽灵语义复活。
 
 ---
 
@@ -143,7 +168,8 @@ git config core.hooksPath .githooks
 
 ## 项目状态
 
-- 当前：**M1 数据先行**——合成样例集 + 植入真值 + 内置区间知识库来源核对已落地；解析/台账/导出三层按里程碑推进。
+- 当前：**M2 解析与 OCR**——模块① 输入层（PDF 文本层直读 + RapidOCR 扫描件兜底 +
+  低置信复核闭环）已落地；规范化/台账/导出三层按里程碑推进。
 - 里程碑与 DoD 见 [`plan/05-里程碑与发布.md`](plan/05-里程碑与发布.md)；架构见 [`plan/02-架构与技术选型.md`](plan/02-架构与技术选型.md)。
 
 ### 本地等价校验（诚实口径）

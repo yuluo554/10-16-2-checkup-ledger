@@ -1,0 +1,14 @@
+{
+  "case_id": "ingest-scan-clean",
+  "expected_lines": [
+    "ALT 51 U/L 9-50",
+    "CREA 77 umol/L 57-97",
+    "TBIL 11.95 umol/L 3.4-20.5",
+    "TC 5.3 mmol/L -5.2"
+  ],
+  "note": "期望行文本（由用例的行定义导出；回归测试验装配器能否复现它）",
+  "tags": [
+    "ingest:ocr",
+    "confidence:above_threshold"
+  ]
+}

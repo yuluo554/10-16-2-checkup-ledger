@@ -116,6 +116,24 @@ class TrendPoint:
     delta_pct: Optional[float] = None
 
 
+@dataclass(frozen=True)
+class ReviewRecord:
+    """模块① 复核留痕：**原始行 → 人工确认值**的对应关系，可审计。
+
+    为什么要有这一条：低置信行放行是"人工背书"的结果，必须能回答
+    "当时看到的是什么、改成了什么、依据是什么"。只记一个 `reviewed=True`
+    等于没留痕——出了错无从追溯，也无法判断"改对了没有"。
+
+    `line_ref` 直接持有 `RawLine`（而非只存行号）：留痕与原始行是**同一实体**，
+    分开存会在序列化/搬运时错位（对不上的留痕 = 没留痕）。
+    """
+
+    line_ref: RawLine
+    original_text: str
+    confirmed_text: str
+    reviewer_note: str = ""
+
+
 @dataclass
 class IngestResult:
     lines: List[RawLine] = field(default_factory=list)

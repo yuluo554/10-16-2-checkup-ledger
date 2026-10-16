@@ -44,7 +44,8 @@ package-dir = { "" = "src" }
 where = ["src"]
 
 [tool.setuptools.package-data]
-# 随包数据白名单：运行时必需的区间知识库与基准用例（交付物内可达"跑基准自证"）
+# 随包数据白名单：运行时必需的区间知识库、阈值配置与基准用例
+# （交付物内可达"跑基准自证"；config.yaml 是 ocr_threshold 的单点定义处）
 checkup_ledger = ["data/*.yaml", "data/*.yml", "benchmark/*.json"]
 
 [tool.pytest.ini_options]

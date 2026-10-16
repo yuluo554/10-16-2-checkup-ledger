@@ -28,7 +28,6 @@ from checkup_ledger.exit_codes import (
 PROG = "checkup-ledger"
 
 _NOT_READY_MODULES = {
-    "ingest": "模块① 输入层（PDF/扫描件导入）",
     "normalize": "模块② 指标规范化层",
     "ledger": "模块④ 纵向台账",
     "export": "模块⑤a 就诊摘要导出",
@@ -40,6 +39,7 @@ _KNOWN_SUBCOMMANDS = (
     "selftest",
     "indicators",
     "bench",
+    "ingest",
 ) + tuple(sorted(_NOT_READY_MODULES))
 
 
@@ -106,6 +106,16 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="可证伪探活：注入一个已知缺陷，基准必须报未达标（用于证明基准不是空转）",
     )
+
+    p_ingest = sub.add_parser("ingest", help="模块① 输入层：PDF 文本层 / 扫描件 → 行级草稿（低置信行转人工复核）")
+    p_ingest.add_argument("paths", nargs="+", help="待解析的 PDF 或图片路径（可多个）")
+    p_ingest.add_argument("--data-dir", default=None, help="显式指定运行时数据目录（读取阈值配置）")
+    p_ingest.add_argument(
+        "--reviews",
+        default=None,
+        help="人工复核留痕 JSON 文件（复核记录数组；缺省则该行不放行）",
+    )
+    p_ingest.add_argument("--json", dest="json_out", default=None, help="把抽取结果写为 JSON 文件")
 
     for name in sorted(_NOT_READY_MODULES):
         p = sub.add_parser(name, help="[未就绪] %s" % _NOT_READY_MODULES[name])
@@ -375,6 +385,126 @@ def cmd_bench(args) -> int:
     return EXIT_OK if report["passed"] else EXIT_FINDINGS
 
 
+# ---------------------------------------------------------------- ingest
+
+
+def _load_reviews(path) -> list:
+    """读人工复核留痕 JSON。
+
+    文件形态：`[{"page":1,"line_no":3,"source_file":"x.png","confirmed_text":"...",
+    "reviewer_note":"..."}, ...]`。`line_ref` 由这里按 (source_file, page, line_no)
+    反查重建——留痕文件只记**定位信息**，不搬 `RawLine` 实体（避免复制走样）。
+    """
+    import json
+
+    from checkup_ledger.model import RawLine, ReviewRecord
+
+    with open(os.fspath(path), "r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    if not isinstance(payload, list):
+        raise ValueError("复核文件应为记录数组")
+
+    records = []
+    for index, item in enumerate(payload):
+        if not isinstance(item, dict):
+            raise ValueError("复核记录 %d 应为对象" % index)
+        for key in ("source_file", "page", "line_no", "confirmed_text"):
+            if key not in item:
+                raise ValueError("复核记录 %d 缺字段 %s" % (index, key))
+        line_ref = RawLine(
+            page=int(item["page"]),
+            line_no=int(item["line_no"]),
+            text=item.get("original_text", ""),
+            confidence=float(item.get("confidence", 0.0)),
+            source_file=item["source_file"],
+        )
+        records.append(
+            ReviewRecord(
+                line_ref=line_ref,
+                original_text=item.get("original_text", ""),
+                confirmed_text=item["confirmed_text"],
+                reviewer_note=item.get("reviewer_note", ""),
+            )
+        )
+    return records
+
+
+def _ingest_payload(result) -> dict:
+    return {
+        "engine": result.engine,
+        "lines": [
+            {
+                "page": line.page,
+                "line_no": line.line_no,
+                "text": line.text,
+                "confidence": line.confidence,
+                "source_file": line.source_file,
+            }
+            for line in result.lines
+        ],
+        "pending_review": [
+            {
+                "page": line.page,
+                "line_no": line.line_no,
+                "text": line.text,
+                "confidence": line.confidence,
+                "source_file": line.source_file,
+            }
+            for line in result.pending_review
+        ],
+        "notes": [{"code": note.code, "message": note.message, "count": note.count} for note in result.notes],
+    }
+
+
+def cmd_ingest(args) -> int:
+    from checkup_ledger.config import ConfigError, load_config
+    from checkup_ledger.ingest import IngestError, MissingDependencyError, ingest
+
+    try:
+        threshold = load_config(explicit=args.data_dir).ocr_threshold
+    except ConfigError as exc:
+        # 阈值必须来自配置：缺配置是**配置缺陷**（检出问题），不是用法错误
+        print("配置不可用：%s" % exc, file=sys.stderr)
+        return EXIT_FINDINGS
+
+    reviews = None
+    if args.reviews:
+        try:
+            reviews = _load_reviews(args.reviews)
+        except (OSError, ValueError) as exc:
+            print("复核文件不可用：%s" % exc, file=sys.stderr)
+            return EXIT_FINDINGS
+
+    results = []
+    exit_code = EXIT_OK
+    for path in args.paths:
+        try:
+            result = ingest(path, ocr_threshold=threshold, reviews=reviews)
+        except MissingDependencyError as exc:
+            print("%s" % exc, file=sys.stderr)
+            return EXIT_MISSING_DEP
+        except IngestError as exc:
+            print("输入层错误：%s" % exc, file=sys.stderr)
+            return EXIT_FINDINGS
+
+        print("== %s ==" % os.path.basename(os.fspath(path)))
+        print("抽取引擎：%s；可传递行 %d 条；待复核 %d 条" % (result.engine, len(result.lines), len(result.pending_review)))
+        for line in result.lines:
+            print("  [%s] p%d L%d %.3f %s" % ("可传递", line.page, line.line_no, line.confidence, line.text))
+        for line in result.pending_review:
+            print("  [%s] p%d L%d %.3f %s" % ("待复核", line.page, line.line_no, line.confidence, line.text))
+        for note in result.notes:
+            print("  注记[%s]：%s" % (note.code, note.message))
+        results.append({"path": os.fspath(path), "result": _ingest_payload(result)})
+
+    if args.json_out:
+        from checkup_ledger.serialize import write_json
+
+        write_json(args.json_out, {"ocr_threshold": threshold, "files": results})
+        print("已写出：%s" % os.path.abspath(os.fspath(args.json_out)))
+    return exit_code
+
+
 # ---------------------------------------------------------------- not ready
 
 
@@ -416,6 +546,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return cmd_indicators(args)
     if command == "bench":
         return cmd_bench(args)
+    if command == "ingest":
+        return cmd_ingest(args)
     if command in _NOT_READY_MODULES:
         return cmd_not_ready(command)
 

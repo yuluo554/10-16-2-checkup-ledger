@@ -83,9 +83,37 @@ def test_exit_usage_from_unknown_bench_suite():
 
 def test_exit_not_ready_from_unimplemented_module():
     """未实现模块必须显式拦截，而不是返回伪造的空结果。"""
-    code, _out, err = run_cli(["ingest"])
+    code, _out, err = run_cli(["ledger"])
     assert code == EXIT_NOT_READY
     assert "尚未落地" in err
+
+
+def test_ingest_is_no_longer_intercepted_by_not_ready():
+    """M2：模块① 输入层已落地，**不得**再走 exit 4 拦截。
+
+    这条是"退役四处同步"的第三处（测试面）：分派改了但测试仍断言 exit 4，
+    退役就没真发生。断言用"给定真实输入得到真实结果"而非"不再报未就绪"——
+    后者可以被"改成报别的错"满足，前者才证明它真的接了实现。
+    """
+    from helpers import repo_path
+
+    sample = repo_path("data", "samples", "ingest", "pdf", "ingest-pdf-plain.pdf")
+    code, out, err = run_cli(["ingest", sample])
+    assert code != EXIT_NOT_READY, "ingest 仍在走未就绪拦截（退役未生效）：%s" % err
+    assert "尚未落地" not in err, "ingest 仍报未就绪文案"
+    assert "抽取引擎" in out, "ingest 未走真实实现：\n%s" % out
+
+
+def test_not_ready_module_list_excludes_landed_module():
+    """防幽灵语义复活：已落地模块不得留在拦截名单里。"""
+    from checkup_ledger.cli import _NOT_READY_MODULES
+
+    assert "ingest" not in _NOT_READY_MODULES, (
+        "已落地模块仍在未就绪名单：%s" % sorted(_NOT_READY_MODULES)
+    )
+    # 其余模块尚未落地，仍应在名单内（防"一刀切清空"把拦截也删掉）
+    for name in ("normalize", "ledger", "export", "report"):
+        assert name in _NOT_READY_MODULES, "尚未落地的模块 %s 被移出拦截名单" % name
 
 
 def test_not_ready_does_not_fake_empty_result():

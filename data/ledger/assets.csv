@@ -11,6 +11,17 @@ B-合成样例,data/samples/cases/case-009-printed-overrides-default.txt,498,148
 B-合成样例,data/samples/cases/case-010-no-range.txt,565,878cb7178c6cc2c6cc00881028387d6bc2c18d8a6a7395436d5564725a11aeb7
 B-合成样例,data/samples/cases/case-011-lisi-2025.txt,574,4992756c16756526b22af2b8c9e03e0e903198bd9069a3369d72644cc0cbcd74
 B-合成样例,data/samples/cases/case-012-lowconf-review.txt,596,ea3a158f6dd669c3ef990085253a12e744bddc6b7636f7b5c0a8f6c1b8ad7138
+B-合成样例,data/samples/ingest/manifest.json,1942,ca98afef5b8c422d08191966f30e47aadcd9a4cf16f5a10e7d10d9b6c43ed3fd
+B-合成样例,data/samples/ingest/pdf/ingest-pdf-padded.pdf,1032,1f9b9aa55dd7e3ba0ebfb3869069dd6048d53cfcce6c0df6825a039f8278e92d
+B-合成样例,data/samples/ingest/pdf/ingest-pdf-per-char.pdf,3218,7129c3ce9b903ecb8e20d94c09ba59e8f740f82315e29e344645c19545ca13e7
+B-合成样例,data/samples/ingest/pdf/ingest-pdf-plain.pdf,780,5333a5ddf0394d79534361176de7d7c2a8710880e85614447b95280cf9cd0ee1
+B-合成样例,data/samples/ingest/scan/ingest-scan-clean.png,11483,b1ef853ccc3f9dae3c3af08495bf3bda724ce94b724e2153067a6aa17469e214
+B-合成样例,data/samples/ingest/scan/ingest-scan-degraded.png,18456,fb2f8177fdaf66aff083e002d28b732cbf8b7ee304daab24aafb9d43550e9887
+B-合成样例,data/samples/ingest/truth/ingest-pdf-padded.truth.json,351,216348911ded7ede7d822f3646a8112ad45fef2524dfd4a3d6839cbca11879b6
+B-合成样例,data/samples/ingest/truth/ingest-pdf-per-char.truth.json,347,da9e9f9dbec6001fe625e3dd25ab7fd6de0b63b55aac0b47391336d55f4a4673
+B-合成样例,data/samples/ingest/truth/ingest-pdf-plain.truth.json,339,8f99dbdc1816cdba19563099ac4710ac77b205a6dacc8ca22d161d22f4d4f3cd
+B-合成样例,data/samples/ingest/truth/ingest-scan-clean.truth.json,346,6f2d0bc644bb6b1c336ab00f07f56e78c85b4d9db110a5d8972b2a85deb2ad34
+B-合成样例,data/samples/ingest/truth/ingest-scan-degraded.truth.json,382,c540d14c986530918c36a958549b0ea48d38eba848b9a03b793b44c957fd56e1
 B-合成样例,data/samples/manifest.json,8831,6ee56d30d23f09edd718ea4003748629ebe4fd070e8d6bda3897823101152456
 B-合成样例,data/samples/truth/case-001-zhangsan-2023.truth.json,952,f4722300be460872ebfd9600377d1072c2b99308db8088929850e789a5762e40
 B-合成样例,data/samples/truth/case-002-zhangsan-2024.truth.json,1647,a327d5c121ad20e74dde0cb6c3118cba3816c6b9e13650d15785b743b4a1d919

@@ -22,6 +22,7 @@ FORBIDDEN_IO_MODULES = (
 
 RENDERER_PATH = "src/checkup_ledger/report/html.py"
 ENGINE_PATH = "src/checkup_ledger/engine/compare.py"
+INGEST_LINES_PATH = "src/checkup_ledger/ingest/lines.py"
 
 
 def _parse(rel_path):
@@ -179,6 +180,74 @@ def test_renderer_calls_external_resource_guard_always():
             if name == "assert_no_external_resources":
                 called = True
     assert called, "零外链断言只被 import 而未被调用（假门）"
+
+
+# ---------------------------------------------------------------- 输入层只做抽取
+
+
+def test_ingest_lines_module_has_no_io_imports():
+    """行装配模块是**纯几何/文本**逻辑：不得 import 文件/网络/时间模块。
+
+    它的职责是"把碎片拼成行"——一旦它开始读文件或读时钟，抽取层就有了两处
+    I/O 入口（另一处是 `pdf.py`/`ocr.py`），"只有 pdf/ocr 碰 I/O"这条边界就破了。
+    """
+    tree = _parse(INGEST_LINES_PATH)
+    imported = [name.split(".")[0] for name in _module_level_imports(tree)]
+    offenders = [name for name in imported if name in FORBIDDEN_IO_MODULES]
+    assert not offenders, "行装配模块 import 了 I/O 类模块：%s" % offenders
+
+
+def test_ingest_layer_does_not_import_engine():
+    """输入层**不得** import 判定内核——它只做抽取，不做任何数值语义判断。
+
+    若输入层能拿到 `engine.compare`，就说明"抽取"与"判定"的边界被跨过去了：
+    判定规则会在两个地方被调用，改一处漏一处。
+    """
+    offenders = []
+    for rel in iter_python_files():
+        if not rel.startswith("src/checkup_ledger/ingest/"):
+            continue
+        for name in _module_level_imports(_parse(rel)):
+            if "engine" in name:
+                offenders.append("%s imports %s" % (rel, name))
+    assert not offenders, "输入层 import 了判定内核（分层越界）：%s" % offenders
+
+
+def test_ingest_layer_does_not_decide_flags():
+    """输入层不得产出判定态常量（`FLAG_*`）——那是判定层的职责。"""
+    offenders = []
+    for rel in iter_python_files():
+        if not rel.startswith("src/checkup_ledger/ingest/"):
+            continue
+        source = read_text(rel)
+        for token in ("FLAG_HIGH", "FLAG_LOW", "FLAG_NORMAL", "FLAG_NOT_ASSESSED"):
+            if token in source:
+                offenders.append("%s 出现 %s" % (rel, token))
+    assert not offenders, "输入层出现判定态（越界做判定）：%s" % offenders
+
+
+def test_ingest_optional_deps_imported_only_inside_guard():
+    """可选重件（pdfplumber / rapidocr）只能出现在**缺依赖守卫内部**。
+
+    判据：这两个名字只能作为**字符串**（传给 `run_guarded` 的模块名）或**函数体内**
+    的 import 出现——**不得**做模块级 import。模块级 import 会让"只装 dev"的环境
+    连收集都失败，缺依赖契约也就无从谈起。
+    """
+    optional = ("pdfplumber", "rapidocr_onnxruntime", "pdfminer", "onnxruntime")
+    offenders = []
+    for rel in iter_python_files():
+        if not rel.startswith("src/checkup_ledger/ingest/"):
+            continue
+        tree = _parse(rel)
+        for node in tree.body:  # 只看模块级
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name.split(".")[0] in optional:
+                        offenders.append("%s 模块级 import %s" % (rel, alias.name))
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                if node.module.split(".")[0] in optional:
+                    offenders.append("%s 模块级 from %s" % (rel, node.module))
+    assert not offenders, "输入层做了模块级可选依赖 import：%s" % offenders
 
 
 # ---------------------------------------------------------------- 零外链守卫本体
