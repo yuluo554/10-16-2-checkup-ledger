@@ -67,6 +67,8 @@ checkup-ledger bench --probe-fault          # 可证伪探活：注入已知缺�
 checkup-ledger ingest 报告.pdf               # 模块① 输入层：抽取行级草稿（PDF 文本层）
 checkup-ledger ingest 扫描件.png             # 扫描件走 OCR 兜底（需 [ocr]）
 checkup-ledger ingest 报告.pdf --json out.json
+checkup-ledger normalize 报告.pdf            # 模块② 规范化：映射指标名/归一单位 → 机械判定（含来源）
+checkup-ledger normalize 报告.pdf --json out.json
 ```
 
 **输入层（模块①）**：把 PDF 文本层 / 扫描件读成**行级草稿**（原始行 + 页码 + 行置信度），
@@ -78,6 +80,17 @@ checkup-ledger ingest 报告.pdf --json out.json
   **代码零默认值**——缺配置即报错，不静默取 0.8 之类的字面值。
 
 缺 `[pdf]` / `[ocr]` 时走 **`exit 3`**（缺依赖契约），**不裸抛 `ImportError`**。
+
+**规范化层（模块②）**：把**已复核放行**的行映射成结构化记录（指标名 → canonical、
+单位归一），再做三级优先的机械判定（`H`/`L`/正常/拒判），判定所用区间的
+**来源在产物里显式可见**（`report_printed` / `builtin_default` / `none`）。三条纪律：
+
+- **别名表只在知识库一处定义**（`indicators.yaml` 的 `aliases`），本层经参数接收、
+  **不另建第二份**；认不出的指标名进**待人工映射队列**（原文 + 原因码），**不猜、不静默丢弃**；
+- **单位按最长优先匹配**：报告写 `2mg` 时若被短单位 `g` 吃掉，值会**静默放大一千倍**；
+  认不出的单位是第三态（`unit_unmapped`），**不落 `not_found`**（"写了但认不出"与
+  "根本没写"是两件事）；
+- **未复核的行不向下传递**：`normalize` 只吃模块① 放行的行，`pending_review` 一律不进。
 
 三条通路等价，任选其一：
 
@@ -106,10 +119,10 @@ py -X utf8 -m checkup_ledger selftest       # ③ Windows 中文控制台推荐�
 | `3` | 缺可选依赖（如未装 `[pdf]` / `[ocr]` 就调用对应能力） |
 | `4` | 阶段未就绪：该模块尚未落地。**显式拦截，不返回伪造的空结果** |
 
-> `4` 的**触发点逐个退役**：模块① 输入层（`ingest`）已落地，**不再走 `exit 4`**
-> （改走真实实现或 `exit 3` 缺依赖）。剩余模块（规范化 / 台账 / 导出 / 报告）落地前
-> 仍走 `4`；首期全部落地后 `4` 整项退役。退役须**四处同步**（常量 / CLI 分派 /
-> 文档 / 测试含防复活断言），少一处即幽灵语义复活。
+> `4` 的**触发点逐个退役**：模块① 输入层（`ingest`）与模块② 规范化层（`normalize`）
+> 已落地，**不再走 `exit 4`**（改走真实实现或 `exit 3` 缺依赖）。剩余模块
+> （台账 / 导出 / 报告）落地前仍走 `4`；首期全部落地后 `4` 整项退役。退役须
+> **四处同步**（常量 / CLI 分派 / 文档 / 测试含防复活断言），少一处即幽灵语义复活。
 
 ---
 
@@ -168,8 +181,9 @@ git config core.hooksPath .githooks
 
 ## 项目状态
 
-- 当前：**M2 解析与 OCR**——模块① 输入层（PDF 文本层直读 + RapidOCR 扫描件兜底 +
-  低置信复核闭环）已落地；规范化/台账/导出三层按里程碑推进。
+- 当前：**M3 规范化与区间层**——模块① 输入层（PDF 文本层直读 + RapidOCR 扫描件兜底 +
+  低置信复核闭环）与模块② 规范化层（指标名映射 + 单位归一 + 待人工映射队列）已落地，
+  **前三级贯通**（报告行 → 规范化 → 机械判定）；台账/导出/报告三层按里程碑推进。
 - 里程碑与 DoD 见 [`plan/05-里程碑与发布.md`](plan/05-里程碑与发布.md)；架构见 [`plan/02-架构与技术选型.md`](plan/02-架构与技术选型.md)。
 
 ### 本地等价校验（诚实口径）
@@ -184,7 +198,7 @@ git config core.hooksPath .githooks
 - **Windows 中文控制台**：程序入口会探测 stdio 编码，对 `cp1252`/`ascii` 这类编不动中文的流自动 reconfigure 为 UTF-8；`cp936`（中文 Windows 默认）保持不动。若使用 `python -m` 形式且输出乱码，可显式 `py -X utf8 -m checkup_ledger …`。
 - **`python` 是商店占位符**：用 `py` 代替。
 - **代理污染 pip**：若 pip 报连不上代理，用 `NO_PROXY="*" python -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple <pkg>`。
-- PDF / OCR 依赖（`[pdf]` / `[ocr]`）为可选重件，**模块① 已落地**，按需安装即可用（未装时对应命令走 `exit 3` 契约）。`[ocr]` 的 ONNX 权重**随 wheel 内嵌**，`pip install` 即完成，无需另外下载。
+- PDF / OCR 依赖（`[pdf]` / `[ocr]`）为可选重件，**模块①② 已落地**，按需安装即可用（未装时 `ingest`/`normalize` 走 `exit 3` 契约）。`[ocr]` 的 ONNX 权重**随 wheel 内嵌**，`pip install` 即完成，无需另外下载。
 
 ---
 

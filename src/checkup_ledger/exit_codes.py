@@ -5,11 +5,13 @@
 - 未实现模块一律 4 显式拦截，**绝不返回伪造的空结果**。
 - 4 对应模块落地后**整项退役**，退役须四处同步：常量 / CLI 分派 / 文档 / 测试（含 not hasattr 防复活）。
 
-**M2 退役记录**：模块① 输入层（ingest）已落地，故 `EXIT_NOT_READY` 常量已删除
-（其唯一触发点就是该模块）。剩余未落地模块（normalize / ledger / export / report）
-**暂时借用** `EXIT_USAGE`？不——那会把"阶段未就绪"读成"用法错误"。故本里程碑的处置是：
-保留 `EXIT_NOT_READY` 直到**首期全部模块落地**（M4 整项退役），但**逐个移除触发点**：
-`ingest` 已从拦截名单移出并接上实现。README 的退出码表随之更新。
+**退役记录（触发点逐个退役）**：
+- M2：模块① 输入层（`ingest`）落地 → 从拦截名单移出并接上实现。
+- M3：模块② 规范化层（`normalize`）落地 → 同上。
+
+剩余未落地模块（ledger / export / report）**暂时借用** `EXIT_USAGE`？不——那会把
+"阶段未就绪"读成"用法错误"。故本里程碑的处置是：保留 `EXIT_NOT_READY` 直到
+**首期全部模块落地**（M4 整项退役），但**逐个移除触发点**。README 的退出码表随之更新。
 """
 
 EXIT_OK = 0
@@ -27,8 +29,8 @@ EXIT_MISSING_DEP = 3
 EXIT_NOT_READY = 4
 """阶段未就绪：该模块尚未落地。显式拦截，不伪造空结果。
 
-M2 起**触发点逐个退役**：`ingest` 已落地并从拦截名单移出；本常量在首期
-剩余模块（normalize/ledger/export/report）落地前保留，M4 整项退役。
+M2 起**触发点逐个退役**：`ingest`（M2）与 `normalize`（M3）已落地并从拦截名单移出；
+本常量在首期剩余模块（ledger/export/report）落地前保留，M4 整项退役。
 """
 
 ALL_EXIT_CODES = (

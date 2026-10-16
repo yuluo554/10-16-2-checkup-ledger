@@ -104,15 +104,33 @@ def test_ingest_is_no_longer_intercepted_by_not_ready():
     assert "抽取引擎" in out, "ingest 未走真实实现：\n%s" % out
 
 
+def test_normalize_is_no_longer_intercepted_by_not_ready():
+    """M3：模块② 规范化层已落地，**不得**再走 exit 4 拦截。
+
+    与 `ingest` 同形态：断言落在"给定真实输入得到真实结果"上——只断言
+    "不再报未就绪"是弱断言（改成报别的错也能满足它）。
+    """
+    from helpers import repo_path
+
+    sample = repo_path("data", "samples", "ingest", "pdf", "ingest-pdf-plain.pdf")
+    code, out, err = run_cli(["normalize", sample])
+    assert code != EXIT_NOT_READY, "normalize 仍在走未就绪拦截（退役未生效）：%s" % err
+    assert "尚未落地" not in err, "normalize 仍报未就绪文案"
+    assert "已映射" in out, "normalize 未走真实实现：\n%s" % out
+    # 端到端贯通：报告行 → 规范化 → 判定，判定来源必须显式可见
+    assert "report_printed" in out, "判定来源未在产物里显式可见：\n%s" % out
+
+
 def test_not_ready_module_list_excludes_landed_module():
     """防幽灵语义复活：已落地模块不得留在拦截名单里。"""
     from checkup_ledger.cli import _NOT_READY_MODULES
 
-    assert "ingest" not in _NOT_READY_MODULES, (
-        "已落地模块仍在未就绪名单：%s" % sorted(_NOT_READY_MODULES)
-    )
+    for landed in ("ingest", "normalize"):
+        assert landed not in _NOT_READY_MODULES, (
+            "已落地模块 %s 仍在未就绪名单：%s" % (landed, sorted(_NOT_READY_MODULES))
+        )
     # 其余模块尚未落地，仍应在名单内（防"一刀切清空"把拦截也删掉）
-    for name in ("normalize", "ledger", "export", "report"):
+    for name in ("ledger", "export", "report"):
         assert name in _NOT_READY_MODULES, "尚未落地的模块 %s 被移出拦截名单" % name
 
 

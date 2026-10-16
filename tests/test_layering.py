@@ -24,6 +24,13 @@ RENDERER_PATH = "src/checkup_ledger/report/html.py"
 ENGINE_PATH = "src/checkup_ledger/engine/compare.py"
 INGEST_LINES_PATH = "src/checkup_ledger/ingest/lines.py"
 
+# 模块② 的纯函数件（**不含 pipeline.py**：它是编排层，唯一允许读文件）
+NORMALIZE_PURE_MODULES = (
+    "src/checkup_ledger/normalize/mapping.py",
+    "src/checkup_ledger/normalize/parse.py",
+)
+NORMALIZE_PREFIX = "src/checkup_ledger/normalize/"
+
 
 def _parse(rel_path):
     with open(repo_path(rel_path), "r", encoding="utf-8") as handle:
@@ -248,6 +255,119 @@ def test_ingest_optional_deps_imported_only_inside_guard():
                 if node.module.split(".")[0] in optional:
                     offenders.append("%s 模块级 from %s" % (rel, node.module))
     assert not offenders, "输入层做了模块级可选依赖 import：%s" % offenders
+
+
+# ---------------------------------------------------------------- 规范化层纯函数
+
+
+def test_normalize_pure_modules_have_no_io_imports():
+    """模块② 的纯函数件（mapping/parse）不得 import 文件/网络/时间/随机模块。
+
+    它们的职责是"把行文本对齐到知识库登记写法"——一旦开始读文件或读时钟，
+    "别名表只在 YAML 一处定义"这条纪律就有了第二条读取路径（测试与基准注入夹具
+    字典的通道也随之失效）。
+    """
+    for rel in NORMALIZE_PURE_MODULES:
+        tree = _parse(rel)
+        imported = [name.split(".")[0] for name in _module_level_imports(tree)]
+        offenders = [name for name in imported if name in FORBIDDEN_IO_MODULES]
+        assert not offenders, "%s import 了 I/O 类模块（应为纯函数）：%s" % (rel, offenders)
+
+
+def test_normalize_pure_modules_have_no_function_level_io_imports():
+    """函数体内 import 同样破坏纯度——分层越严，边界越靠后越易漏。"""
+    for rel in NORMALIZE_PURE_MODULES:
+        tree = _parse(rel)
+        offenders = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name.split(".")[0] in FORBIDDEN_IO_MODULES:
+                        offenders.append("%s: %s" % (rel, alias.name))
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                if node.module.split(".")[0] in FORBIDDEN_IO_MODULES:
+                    offenders.append("%s: from %s" % (rel, node.module))
+        assert not offenders, "规范化纯函数件存在 I/O 类 import：%s" % offenders
+
+
+def test_normalize_layer_does_not_import_engine():
+    """模块② **不得** import 判定内核——它只做映射，不做任何数值语义判断。
+
+    若规范化层能拿到 `engine.compare`，就说明"映射"与"判定"的边界被跨过去了：
+    判定规则会在两个地方被调用，改一处漏一处。
+    """
+    offenders = []
+    for rel in iter_python_files():
+        if not rel.startswith(NORMALIZE_PREFIX):
+            continue
+        for name in _module_level_imports(_parse(rel)):
+            if "engine" in name:
+                offenders.append("%s imports %s" % (rel, name))
+    assert not offenders, "规范化层 import 了判定内核（分层越界）：%s" % offenders
+
+
+def test_normalize_layer_does_not_decide_flags():
+    """模块② 不得产出判定态常量（`FLAG_*`）——那是判定层的职责。"""
+    offenders = []
+    for rel in iter_python_files():
+        if not rel.startswith(NORMALIZE_PREFIX):
+            continue
+        source = read_text(rel)
+        for token in ("FLAG_HIGH", "FLAG_LOW", "FLAG_NORMAL", "FLAG_NOT_ASSESSED"):
+            if token in source:
+                offenders.append("%s 出现 %s" % (rel, token))
+    assert not offenders, "规范化层出现判定态（越界做判定）：%s" % offenders
+
+
+def test_normalize_layer_has_no_embedded_range_numbers():
+    """模块② 不得出现区间数值——它们只能来自知识库（零字面量门禁）。
+
+    豁免与判定内核同口径：0/1/2 这类结构常数与精度约定。
+    """
+    exempt = {0, 1, 2, -1}
+    offenders = []
+    for rel in iter_python_files():
+        if not rel.startswith(NORMALIZE_PREFIX):
+            continue
+        for node in ast.walk(_parse(rel)):
+            if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)) \
+                    and not isinstance(node.value, bool):
+                if node.value not in exempt:
+                    offenders.append("%s:%d 出现 %s" % (rel, node.lineno, node.value))
+    assert not offenders, "规范化层出现区间数值字面量：%s" % offenders
+
+
+def test_normalize_layer_only_pipeline_reads_files():
+    """**唯一读文件处**必须落在 `pipeline.py`（编排层）——纯函数件不许碰文件。
+
+    判据 = 规范化包内，只有 `pipeline.py` 可以 import `loader`/`paths`/`open`。
+    这条与"别名表只在 YAML 一处定义"是同一件事的两面：读取路径唯一，
+    注入夹具字典的通道才唯一。
+    """
+    allowed = {"src/checkup_ledger/normalize/pipeline.py"}
+    offenders = []
+    for rel in iter_python_files():
+        if not rel.startswith(NORMALIZE_PREFIX) or rel in allowed:
+            continue
+        source = read_text(rel)
+        for token in ("open(", "checkup_ledger.loader", "checkup_ledger.paths"):
+            if token in source:
+                offenders.append("%s 出现 %r（纯函数件不许读文件）" % (rel, token))
+    assert not offenders, "规范化层的文件读取溢出到纯函数件：%s" % offenders
+
+
+def test_normalize_layer_does_not_import_loader():
+    """纯函数件不得 import `loader`——loader 含文件 I/O，会把纯度门禁架空。
+
+    编排层（pipeline）在函数体内延迟 import loader 是允许的（它是唯一读文件处）；
+    模块级 import 则会让"纯函数"这条边界从 import 图上一眼就破。
+    """
+    offenders = []
+    for rel in NORMALIZE_PURE_MODULES:
+        for name in _module_level_imports(_parse(rel)):
+            if "loader" in name or "paths" in name:
+                offenders.append("%s imports %s" % (rel, name))
+    assert not offenders, "规范化纯函数件 import 了含 I/O 的模块：%s" % offenders
 
 
 # ---------------------------------------------------------------- 零外链守卫本体

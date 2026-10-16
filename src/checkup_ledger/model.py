@@ -134,6 +134,25 @@ class ReviewRecord:
     reviewer_note: str = ""
 
 
+@dataclass(frozen=True)
+class PendingMap:
+    """模块② 的"待人工映射"记录：**原文 + 原因码**，不猜、不静默丢弃。
+
+    为什么要有这一条：一行报告"写了但认不出"（指标名不认识 / 单位认不出 / 数值
+    没定位到）与"报告根本没写这一项"是两件事。前者是**第三态**（`pending`），
+    必须显式列出来让人工去映射；静默丢弃等于把"我们没看懂"伪装成"报告里没有"。
+
+    `line_ref` 直接持有 `RawLine`（与 `ReviewRecord` 同理）：留痕与原始行是**同一实体**，
+    分开存会在搬运时错位；溯源链在规范化这一层不能断。
+    """
+
+    line_ref: RawLine
+    raw_text: str
+    reason: str
+    raw_name: str = ""
+    raw_unit: str = ""
+
+
 @dataclass
 class IngestResult:
     lines: List[RawLine] = field(default_factory=list)
@@ -144,6 +163,12 @@ class IngestResult:
 
 @dataclass
 class NormalizeResult:
+    """模块② 产出：可判定的结构化记录 + 待人工映射队列 + 显式注记。
+
+    `measurements` **只含已复核放行的行**（未复核的低置信行由模块① 拦下，
+    根本到不了这里）；`pending_mapping` 是"写了但认不出"的行，逐条附原因码。
+    """
+
     measurements: List[Measurement] = field(default_factory=list)
-    pending_mapping: List[object] = field(default_factory=list)
+    pending_mapping: List[PendingMap] = field(default_factory=list)
     notes: List[Note] = field(default_factory=list)

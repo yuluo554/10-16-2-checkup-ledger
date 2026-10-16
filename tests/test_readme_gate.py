@@ -360,7 +360,7 @@ def test_face4_dev_extra_covers_test_time_deps():
 def test_face5_packages_find_covers_real_layout():
     """`packages.find` 的 where 解析出的包目录必须真实存在（含子包与包内数据）。"""
     assert os.path.isdir(repo_path("src", PACKAGE_ROOT)), "包目录不存在"
-    for sub in ("engine", "report", "benchmark"):
+    for sub in ("engine", "report", "benchmark", "ingest", "normalize"):
         init = repo_path("src", PACKAGE_ROOT, sub, "__init__.py")
         assert os.path.isfile(init), "子包 %s 缺 __init__.py（不会被 packages.find 收录）" % sub
 

@@ -28,7 +28,6 @@ from checkup_ledger.exit_codes import (
 PROG = "checkup-ledger"
 
 _NOT_READY_MODULES = {
-    "normalize": "模块② 指标规范化层",
     "ledger": "模块④ 纵向台账",
     "export": "模块⑤a 就诊摘要导出",
     "report": "模块⑤b 本地 HTML 报告",
@@ -40,6 +39,7 @@ _KNOWN_SUBCOMMANDS = (
     "indicators",
     "bench",
     "ingest",
+    "normalize",
 ) + tuple(sorted(_NOT_READY_MODULES))
 
 
@@ -116,6 +116,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="人工复核留痕 JSON 文件（复核记录数组；缺省则该行不放行）",
     )
     p_ingest.add_argument("--json", dest="json_out", default=None, help="把抽取结果写为 JSON 文件")
+
+    p_norm = sub.add_parser(
+        "normalize",
+        help="模块② 规范化层：报告行 → 结构化记录（指标名映射 / 单位归一 / 待人工映射队列）",
+    )
+    p_norm.add_argument("paths", nargs="+", help="待规范化的报告文件（PDF / 扫描件，可多个）")
+    p_norm.add_argument("--data-dir", default=None, help="显式指定运行时数据目录（知识库与阈值配置）")
+    p_norm.add_argument(
+        "--reviews",
+        default=None,
+        help="人工复核留痕 JSON 文件（低置信行经复核后才可进入本层）",
+    )
+    p_norm.add_argument("--json", dest="json_out", default=None, help="把规范化结果写为 JSON 文件")
 
     for name in sorted(_NOT_READY_MODULES):
         p = sub.add_parser(name, help="[未就绪] %s" % _NOT_READY_MODULES[name])
@@ -505,6 +518,193 @@ def cmd_ingest(args) -> int:
     return exit_code
 
 
+# ---------------------------------------------------------------- normalize
+
+
+def _measurement_payload(m) -> dict:
+    printed = m.ref_range_printed
+    return {
+        "canonical_name": m.canonical_name,
+        "raw_name": m.raw_name,
+        "value": m.value,
+        "unit": m.unit,
+        "raw_unit": m.raw_unit,
+        "ref_range_printed": None
+        if printed is None
+        else {"low": printed.low, "high": printed.high, "bounds": printed.bounds},
+        "line_ref": None
+        if m.line_ref is None
+        else {
+            "page": m.line_ref.page,
+            "line_no": m.line_ref.line_no,
+            "source_file": m.line_ref.source_file,
+        },
+        "reviewed": m.reviewed,
+    }
+
+
+def _judged_payload(j) -> dict:
+    payload = _measurement_payload(j.measurement)
+    payload["flag"] = j.flag
+    payload["range_source"] = j.range_source
+    payload["range_used"] = {
+        "low": j.range_used.low,
+        "high": j.range_used.high,
+        "bounds": j.range_used.bounds,
+    }
+    return payload
+
+
+def cmd_normalize(args) -> int:
+    """模块② 规范化层：抽取 → 复核门 → 规范化 → 判定（**端到端贯通**）。
+
+    链路只走一条：`ingest()`（含低置信复核门）→ `normalize()` → `judge_all()`。
+    `ingest()` 返回的 `lines` 已含"达标 + 复核放行"，`pending_review` 一律不进
+    规范化层（`normalize_ingest` 是唯一接续点，它还会挡"复核门被绕过"的形态）。
+
+    判定用的是知识库的 **verified 默认值**（`verified_defaults()`）——当前条目
+    一律 `pending`，故报告未自印区间时走拒判（设计内行为）。`range_source` 在产物
+    里**显式可见**（三级优先的可审计落点）。
+    """
+    from checkup_ledger.config import ConfigError, load_config
+    from checkup_ledger.engine.compare import judge_all
+    from checkup_ledger.ingest import IngestError, MissingDependencyError, ingest
+    from checkup_ledger.loader import load_indicators
+    from checkup_ledger.normalize import (
+        NormalizeError,
+        build_dictionary,
+        normalize_ingest,
+        pending_summary,
+        reason_label,
+    )
+    from checkup_ledger.paths import indicators_path
+
+    try:
+        threshold = load_config(explicit=args.data_dir).ocr_threshold
+    except ConfigError as exc:
+        print("配置不可用：%s" % exc, file=sys.stderr)
+        return EXIT_FINDINGS
+
+    try:
+        table = load_indicators(indicators_path(args.data_dir))
+        dictionary = build_dictionary(table.entries, disabled=table.disabled)
+    except Exception as exc:  # 知识库不可用属"检出问题"，不是用法错误
+        print("知识库不可用：%s" % exc, file=sys.stderr)
+        return EXIT_FINDINGS
+
+    reviews = None
+    if args.reviews:
+        try:
+            reviews = _load_reviews(args.reviews)
+        except (OSError, ValueError) as exc:
+            print("复核文件不可用：%s" % exc, file=sys.stderr)
+            return EXIT_FINDINGS
+
+    defaults = table.verified_defaults()
+    constraints = dictionary.constraints()
+
+    results = []
+    for path in args.paths:
+        try:
+            ingested = ingest(path, ocr_threshold=threshold, reviews=reviews)
+        except MissingDependencyError as exc:
+            print("%s" % exc, file=sys.stderr)
+            return EXIT_MISSING_DEP
+        except IngestError as exc:
+            print("输入层错误：%s" % exc, file=sys.stderr)
+            return EXIT_FINDINGS
+
+        try:
+            normalized = normalize_ingest(ingested, dictionary=dictionary)
+        except NormalizeError as exc:
+            print("规范化层错误：%s" % exc, file=sys.stderr)
+            return EXIT_FINDINGS
+
+        judged = judge_all(
+            normalized.measurements, defaults, constraints=constraints
+        )
+
+        print("== %s ==" % os.path.basename(os.fspath(path)))
+        print(
+            "抽取引擎：%s；可传递行 %d 条；待复核 %d 条；已映射 %d 条；待人工映射 %d 条"
+            % (
+                ingested.engine,
+                len(ingested.lines),
+                len(ingested.pending_review),
+                len(normalized.measurements),
+                len(normalized.pending_mapping),
+            )
+        )
+        for item in judged:
+            m = item.measurement
+            ref = item.range_used
+            print(
+                "  [%s] %-8s %s %s（区间 %s ~ %s，来源 %s）← %s"
+                % (
+                    item.flag,
+                    m.canonical_name,
+                    m.value,
+                    m.unit,
+                    "\u2014" if ref.low is None else ref.low,
+                    "\u2014" if ref.high is None else ref.high,
+                    item.range_source,
+                    "%s 第 %d 页第 %d 行" % (m.line_ref.source_file, m.line_ref.page, m.line_ref.line_no)
+                    if m.line_ref
+                    else "无溯源",
+                )
+            )
+        for item in normalized.pending_mapping:
+            print(
+                "  [待人工映射] %s：%s（原文：%s）"
+                % (reason_label(item.reason), item.reason, item.raw_text)
+            )
+        for note in normalized.notes:
+            print("  注记[%s]：%s" % (note.code, note.message))
+
+        results.append(
+            {
+                "path": os.fspath(path),
+                "engine": ingested.engine,
+                "passed_lines": len(ingested.lines),
+                "pending_review": len(ingested.pending_review),
+                "judged": [_judged_payload(item) for item in judged],
+                "pending_mapping": [
+                    {
+                        "reason": item.reason,
+                        "raw_text": item.raw_text,
+                        "raw_name": item.raw_name,
+                        "raw_unit": item.raw_unit,
+                        "line_ref": {
+                            "page": item.line_ref.page,
+                            "line_no": item.line_ref.line_no,
+                            "source_file": item.line_ref.source_file,
+                        },
+                    }
+                    for item in normalized.pending_mapping
+                ],
+                "notes": [
+                    {"code": note.code, "message": note.message, "count": note.count}
+                    for note in normalized.notes
+                ],
+                "pending_by_reason": pending_summary(normalized.pending_mapping),
+            }
+        )
+
+    if args.json_out:
+        from checkup_ledger.serialize import write_json
+
+        write_json(
+            args.json_out,
+            {
+                "ocr_threshold": threshold,
+                "verified_default_count": len(defaults),
+                "files": results,
+            },
+        )
+        print("已写出：%s" % os.path.abspath(os.fspath(args.json_out)))
+    return EXIT_OK
+
+
 # ---------------------------------------------------------------- not ready
 
 
@@ -548,6 +748,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return cmd_bench(args)
     if command == "ingest":
         return cmd_ingest(args)
+    if command == "normalize":
+        return cmd_normalize(args)
     if command in _NOT_READY_MODULES:
         return cmd_not_ready(command)
 
