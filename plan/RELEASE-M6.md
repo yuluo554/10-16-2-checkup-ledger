@@ -162,6 +162,30 @@ pdfplumber 不在构建环境 → 产物缺 PDF 文本层能力 → 中立环境
   - release assets digest 与留档一致（§五/§六）；
   - `visibility: public`（gh api 回读）。
 
+## §九 方法论回写（M6 收尾轮，2026-10-17）
+
+本项目 M1–M6 全程实测教训已回写进方法论 skill（用户以 /goal 指令确认）：
+
+**ai-tool-project-sprint**：
+- `references/release.md`：**构建期安装面 = 产物能力面**（freeze job 缺 `[pdf]` → 产物缺
+  PDF 能力 → 中立跑 ledger exit 3，CI 首跑实录；三个安装面各自对账）；**声明式跳过守卫
+  单点化**（`requires_pdf` 集中 helpers，配对修复 = 探活 + 安装面 `.[dev,pdf]`）。
+- `references/delivery.md`（追加"台账/持久层"与"退役/免责/复核"两节）：SQLite 唯一键
+  NULL 彼此不等 → 未知写有值空串；日期形状零填充校验；`created_at` 不读时钟；测试隔离
+  真实主目录；缺值≠零/缺历史≠100% 分位；NOT_READY 四处同步退役 + 三条防复活断言；
+  首启免责六字纪律；低置信复核闭环；建议词根出口常驻断言。
+- `references/benchmarks.md`：三级区间优先（报告自印 > 内置标注 > 拒判）与"印了读不出
+  ≠ 没印"三态拆分；适用域硬门 + 反向用例；行数守恒与跨层语义对齐。
+
+**crash-loop-rescue**：
+- `references/diagnosis.md`：**镜子门**（断言从被测常量取期望 = 拿实现当规格，K81；
+  判据面钉死测试侧、断言实现覆盖它，配双变异）。
+- `references/false-results.md`：**expanduser 哨兵陷阱**（解不出主目录原样返回 `~`、
+  CWD 建 `~` 文件夹——except 防不住）；**空模式登记制**（合法空 glob 逐条带理由、
+  未登记仍报错）；**PYZ 归档盲区**（目录树扫描对归档内模块不可见，断言读
+  CArchiveReader 模块名表）。
+- 两个 SKILL.md 的 frontmatter/路由行同步上述条目。
+
 ## §八 对外动作的用户确认
 
 - **2026-10-17（收尾对话内）**：用户确认"**确认发布**"——授权按发布纪律顺序执行
