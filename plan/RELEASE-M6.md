@@ -18,7 +18,7 @@
 | 4 | 运行产物不在历史树 | 本项目**无运行产物入仓**（`.gitignore` 覆盖 `*.db`/`*.pdf`/`*.png` 白名单外全拦；PII gate 三重拦截自 M0 常驻） | 步骤 2 的全历史扫描已覆盖（0 命中即证明） |
 | 5 | 二进制样例单独扫 | 字节级 + UTF-16LE 宽串双形态扫个人路径签名；PDF 加压缩流解压扫描 | 5 份入仓二进制（3 PDF + 2 PNG，全在 `data/samples/` 白名单内，**全合成**）**0 命中** |
 | 6 | 品牌隔离人工复查 | 自动词表（只收项目名/账号名）之外逐词扫 | **抓出 1 处**：`tests/test_readme_gate.py:302` 注释复述了同系列项目代号 → 已改为方向级描述（"同系列项目实测过的缺口（项目代号按品牌隔离纪律不落库）"）；plan/00 与 plan/01 里的 `LabLens`/`bloodio`/`Health-Flow`/`CareTrace` 是**第三方开源先例引用**（`data/README.md` 检索式登记在案），不是姊妹项目——按"领域描述词/外部先例不属脱敏词表"口径保留 |
-| 7 | 产物本体扫描 | ⬜ **待冻结产物重新构建后执行**（发布附件打包时，与 §四 同轮） | — |
+| 7 | 产物本体扫描 | dist 全树字节级扫个人路径签名（**ASCII + UTF-16LE 双编码各编一遍**；不跑邮箱正则——上游厂商串非本项目泄漏面）；命中做**官方原件同串比对**裁决 | `yuluo554`/`ProgramData` **0 命中**；`Users` 161 处命中经对照实验**全部判 UPSTREAM**（cryptography 原件 `_rust.pyd` 同串 155/155、官方 `python312.dll` 同串 4/4、`base_library.zip` 为 CPython 官方 zip 再打包 2/2——同串在对应官方发行件原件里都存在 = 上游固有元数据，非本项目泄漏）；**留档与扫描器源码不复述命中串原文** |
 
 **手机号正则的门禁互动（实测，零字面量门禁又立功一次）**：审计器首版把手机号正则
 裸写成 `1[3-9]\d{9}`，`9` 与知识库区间端点撞值 → `test_no_literal_thresholds`
@@ -89,14 +89,27 @@ git rev-list --count HEAD → 14
 
 ## §五 tag 与 Release——⬜ 待用户确认后执行
 
+**附件本地预演（已实测，发布后以真下载复核为准）**：
+
+- 冻结产物重构建（M6 收尾轮）：`py -3.12 tools/freeze_build.py --out <仓库外>` →
+  **四项齐备**（对账 3 份 / 零上传可扫 / 打包确定性 / 真跑 version+selftest+bench+exit 2）；
+- 发布附件：`checkup-ledger-0.1.0-win64.zip`（**ASCII 名**；由 `pack_deterministic_zip`
+  打包，`ZIP_STORED` + 条目排序 + 固定时间戳）；
+  **sha256（45,165,829 字节）**：`3c46185224515f8eb130936284cabe1e073cf6a1aa9664200aa656d7e69001fe`
+  （同一 dist 两次打包逐字节一致，pack-first/pack-second 同哈希）；
+- **本地解压冒烟（中立目录）**：附件解压后 `selftest`/`bench` exit 0、未知命令 exit 2 ✅；
+- ⚠️ 附件哈希在**最终基线**（发布收尾提交）后需从该基线重建复核——若收尾提交改变了
+  `src/`/`tools/`，须重打并更新本节 sha256（tag、附件、留档三者同基线）。
+
 - tag：⬜（拟 `v0.1.0`，annotated，指向含本留档完整内容的提交——**用
   `git rev-list -n1 v0.1.0` 与 `git rev-parse HEAD` 核对相等**，不写死哈希）
-- Release 附件：冻结产物 zip（`pack_deterministic_zip` 打包，sha256 留档本节）：
-  ⬜ 待回填
-- `gh release view <tag> --json assets,tagName,isDraft`（draft=false + 附件名在列）：⬜ 待回填
+- Release 附件上传与 `gh release view <tag> --json assets,tagName,isDraft`（draft=false +
+  附件名在列）：⬜ 待回填
 
 ## §六 发布物本体已验——⬜ 待回填
 
+**本地预演已做**（附件 = 本机构建 + 确定性打包；解压冒烟 3/3 过，见 §五）。
+但"发布物本体已验"的完整口径是**真下载**（隔着一次上传与一次下载）：
 真下载 Release 附件 → sha256 与留档一致 → 中立目录解压跑冻结态自检：
 （三步证据各一行，⬜ 待发布后回填）
 
