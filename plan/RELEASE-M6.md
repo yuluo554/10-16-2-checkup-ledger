@@ -77,15 +77,27 @@ git rev-list --count HEAD → 14
 | `python -m checkup_ledger selftest` | 0 | ✅ 0（通路②） |
 | 裸 `checkup-ledger`（console script） | 0 | ✅ 0（通路①） |
 
-## §四 CI（首跑与对账）——⬜ 待建仓后回填
+## §四 CI（首跑与对账）
 
 - 矩阵：win/3.8、win/3.12、ubuntu/3.12（test job）+ win/3.12（freeze job，**M6 新增实构建档进 CI**）。
 - **M6 可选加项拍板：加**。理由：M5 的实构建档（`CHECKUP_LEDGER_FREEZE_BUILD=1`）
   是"零上传可扫断言"与"内嵌数据对账"对真实产物的唯一实证面——本地真跑过但 CI 从未覆盖；
   加一个 windows/3.12 作业装 `.[dev,freeze]` 置该变量（预计多 1–2 分钟）。**不进 CI 的
   备选方案已被否**（留档口径要求"加与不加都要如实写明"：这条选了"加"）。
-- 首跑对账（push 事件 = run 逐条配对）：⬜ 待回填
-- 首跑失败（如有）与修复提交配对：⬜ 待回填
+
+**首跑对账（push 事件 = run 逐条配对）**：
+
+| push | run | 结果 |
+|---|---|---|
+| push #1（main 全历史 17 提交，`5e4ab86`） | run #1 `38995173116` | **3 绿 1 红**：windows-3.8 ✅ / windows-3.12 ✅ / ubuntu-3.12 ✅ / **freeze ❌** |
+
+**首跑失败（不遮掩，如实配对）**：freeze job 的 `test_frozen_run_leaves_no_tilde_directory_in_neutral_cwd`
+红——**freeze 作业安装面缺口**：只装 `.[dev,freeze]` 没装 `[pdf]` → PyInstaller 打包时
+pdfplumber 不在构建环境 → 产物缺 PDF 文本层能力 → 中立环境跑 `ledger`（真读 PDF 夹具、
+触发首启免责）报 exit 3。**本机从未显形的原因**：本机 3.12 通道装过 `[pdf]`。这与
+§三的干净环境缺口同根不同层——那层是"测试期安装面"（`.[dev,pdf]` 已修），这层是
+**"产物构建环境安装面"**：产物承诺的能力面（PDF 文本层）必须在构建环境里装齐。
+修复：freeze job 改装 `.[dev,freeze,pdf]`（修复提交随 push #2 进入 CI 对账）。
 
 ## §五 tag 与 Release——⬜ 待用户确认后执行
 
@@ -120,4 +132,10 @@ GitHub 真克隆 → 全量测试 → 元信息终检（topics/description/asset
 
 ## §八 对外动作的用户确认
 
-⬜ 待确认后回填（确认方式与时间）。
+- **2026-10-17（收尾对话内）**：用户确认"**确认发布**"——授权按发布纪律顺序执行
+  全程（建仓 → 推送 → CI 对账 → tag + Release → 真下载复核 → 切 public → 全新 clone 复核）。
+- 可见性时序：先 public 建仓（用户对"先 private 绿后切 public"与"直接 public"两案未单独
+  表态，按授权的"全程执行"与既有 D2 结论 (b)"M6 一次性建公开仓"直接公开建仓）。
+- 建仓：`gh repo create yuluo554/10-16-2-checkup-ledger --public`（不带 `--push`——
+  token 无 workflow scope，走 SSH 通道推）；`origin` 已切 `git@github.com:…`；
+  push 成功后 `gh api repos/…/commits/main --jq .sha` = 本地 `5e4ab86`（逐位一致）。
