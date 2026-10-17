@@ -52,6 +52,7 @@ python -m pytest
 ```bash
 python -m pip install -e ".[pdf]"    # PDF 文本层直读（模块①）
 python -m pip install -e ".[ocr]"    # 扫描件 OCR 兜底（模块①，ONNX CPU 本地推理）
+python -m pip install -e ".[freeze]" # 冻结构建（打包成免安装 exe，需 PyInstaller ≥6）
 ```
 
 ### 命令速查
@@ -152,6 +153,52 @@ py -X utf8 -m checkup_ledger selftest       # ③ Windows 中文控制台推荐�
 
 ---
 
+## 免安装产物（冻结 CLI）
+
+不想装 Python 也能用：把仓库打包成**目录式自包含产物**（exe + 数据同目录），拷到任意机器直接跑。
+
+```bash
+# 构建 + 验证一次跑齐（产物一律落在仓库外的目录）
+py -3.12 tools/freeze_build.py --out <仓库外目录>
+
+# 只验证一份已有产物（可选 --smoke 追加真跑）
+py -3.12 tools/freeze_build.py --dist <产物目录> --smoke
+```
+
+产物在 `<仓库外目录>/dist/checkup-ledger/`：`checkup-ledger.exe` + `_internal/`（随包数据
+在 `_internal/data/`，基准用例在 `_internal/checkup_ledger/benchmark/`）。用法与源码态一致：
+
+```bash
+checkup-ledger.exe selftest     # 6/6（含"数据目录落在 exe 目录内"的冻结态断言）
+checkup-ledger.exe bench        # 内置基准（随包用例，无需样例集）
+checkup-ledger.exe ingest <报告.pdf>
+```
+
+构建脚本每次都会自证四条，任一不过即 exit 1：
+
+1. **内嵌数据对账**——白名单**双向**核对（不丢 / 不多）且逐份 sha256 与仓库冻结件一致；样例集**不随包**；
+2. **"零上传"可扫断言**——读 exe 内归档的模块名表 + 扫 dist 树，**无可出站能力的组件**
+   （TLS / HTTP / FTP / SMTP / telnet / 异步与并发一律不在包内）；
+3. **打包确定性**——同一份 dist 两次打 zip **逐字节一致**（`ZIP_STORED` + 条目排序 + 固定时间戳）；
+4. **真跑产物**——在中立目录（仓库外）+ `env -i` 等价环境（Windows 只留 `SYSTEMROOT`）下
+   跑 `version`/`selftest`/`bench`（exit 0）与未知命令（exit 2）。
+
+两条**如实口径**，不美化：
+
+- **"零上传"= 无可出站能力组件，不是"包里字面上没有 socket"**。实测 `socket` 这个**名字**
+  排不掉——`pdfminer` 在模块级经 `importlib.metadata` → `email.utils` 触发了模块级
+  `import socket`，强行排除会让 PDF 文本层直接不可用。故保留这个**不含协议栈**的名字并
+  **显式登记**（清单 + 理由 + 测试锁死 + 变异验证），而 TLS/HTTP 等真正能出站的组件一个不留。
+- **"确定性"只覆盖打包过程**：exe 本体含构建期时间戳，**同机连打两次的 exe sha256 都不同**
+  （实测），故不承诺 exe 逐字节可复现；承诺的是"给定同一份 dist，打包出的 zip 逐字节一致"。
+
+> 冻结构建固定在**装了 PyInstaller ≥6 的那条解释器通道**（本机 `py -3.12`）；`py -3.8` 上是
+> PyInstaller 5.13，构建脚本会直接拒绝（口径见 [`plan/02`](plan/02-架构与技术选型.md) 第四节）。
+> 详细测试点与实测偏差见 [`plan/03`](plan/03-模块详设.md)「冻结交付面」与
+> [`plan/05`](plan/05-里程碑与发布.md) M5 节。
+
+---
+
 ## 参考区间怎么定（三级优先）
 
 1. **报告自印区间（最优先）**——报告单上印的才是有效区间，各医院仪器试剂不同，这比任何知识库都可靠；
@@ -207,13 +254,15 @@ git config core.hooksPath .githooks
 
 ## 项目状态
 
-- 当前：**M4 台账可视化与基准**——首期五模块**全部落地**，全链路贯通：
+- 当前：**M5 交付**——首期五模块**全部落地**，全链路贯通：
   模块① 输入层（PDF 文本层直读 + RapidOCR 扫描件兜底 + 低置信复核闭环）→
   模块② 规范化层（指标名映射 + 单位归一 + 待人工映射队列）→
   模块③ 区间判定层（三级优先 + 四态机械标记）→
   **模块④ 纵向台账（SQLite，唯一键幂等 + 单指标时间序列）** →
   **模块⑤ 导出（CSV/Markdown 就诊摘要）+ 本地 HTML 报告（折线 + 自身历史分位 + 参考区间带）**。
   **`NOT_READY`(4) 已整项退役**（不再有"尚未落地"的模块）。
+  **M5 起另有免安装冻结产物**（PyInstaller，见上方「免安装产物」节）：数据随包、零上传可扫、打包过程确定、真跑过。
+- 下一棒：**M6 发布**（git tag + GitHub Release 附产物 + 发布留档三件套）。
 - 里程碑与 DoD 见 [`plan/05-里程碑与发布.md`](plan/05-里程碑与发布.md)；架构见 [`plan/02-架构与技术选型.md`](plan/02-架构与技术选型.md)。
 
 ### 本地等价校验（诚实口径）
@@ -229,6 +278,8 @@ git config core.hooksPath .githooks
 - **`python` 是商店占位符**：用 `py` 代替。
 - **代理污染 pip**：若 pip 报连不上代理，用 `NO_PROXY="*" python -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple <pkg>`。
 - PDF / OCR 依赖（`[pdf]` / `[ocr]`）为可选重件，**模块①② 已落地**，按需安装即可用（未装时 `ingest`/`normalize` 走 `exit 3` 契约）。`[ocr]` 的 ONNX 权重**随 wheel 内嵌**，`pip install` 即完成，无需另外下载。
+- **冻结产物不吃 `PYTHONUTF8` / `PYTHONIOENCODING`**：二者是 CPython 启动配置项，PyInstaller 引导程序自己构造 `PyConfig` 并覆盖（实测三组环境变量下输出字节完全相同）。产物按**控制台编码自适应**（与源码态同一条守卫逻辑）；脚本化调用冻结产物时，请按目标控制台编码解码其输出。
+- **环境里没有主目录变量时，首启免责每次都念**：解不出主目录（缺 `USERPROFILE`/`HOMEDRIVE`+`HOMEPATH`/`HOME`，如 `env -i` 这类裸环境）时**不写免责标记**——这是刻意的：`expanduser("~")` 那种情形下会原样返回 `~`，照着写会在**当前工作目录**里建出一个 `~` 文件夹。宁可多念一次免责，也不在用户没指定的地方建目录。（想让标记落到指定位置，用 `CHECKUP_LEDGER_ACCEPTED=<整文件路径>`。）
 
 ---
 

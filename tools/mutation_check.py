@@ -576,6 +576,146 @@ def _load_mutations():
             "cmd": [sys.executable, "-m", "pytest", "-q", "tests/test_exit_codes.py"],
             "target": "退出码（集合为四级）",
         },
+        # ---- M5：免安装产物新增守门 ----
+        {
+            "name": "freeze-入口改相对导入",
+            "file": os.path.join(SRC, "checkup_ledger", "frozen_entry.py"),
+            "old": "from checkup_ledger.cli import main",
+            "new": "from .cli import main  # 变异：相对导入（冻结态 __main__ 无包上下文）",
+            "cmd": [sys.executable, "-m", "pytest", "-q", "tests/test_frozen.py"],
+            "target": "冻结入口（绝对导入）",
+        },
+        {
+            "name": "freeze-入口长出第二层逻辑",
+            "file": os.path.join(SRC, "checkup_ledger", "frozen_entry.py"),
+            "old": "if __name__ == \"__main__\":\n    sys.exit(main())",
+            "new": (
+                "def _extra_layer():\n    return 0  # 变异：壳里长出第二层逻辑\n\n\n"
+                "if __name__ == \"__main__\":\n    sys.exit(main())"
+            ),
+            "cmd": [sys.executable, "-m", "pytest", "-q", "tests/test_frozen.py"],
+            "target": "冻结入口（薄壳）",
+        },
+        {
+            "name": "freeze-构建不排 ssl",
+            "file": os.path.join(HERE, "freeze_build.py"),
+            "old": "OUTBOUND_EXCLUDES = (\n    \"ssl\",",
+            "new": "OUTBOUND_EXCLUDES = (  # 变异：漏排 TLS 组件\n    \"_unused_placeholder\",",
+            "cmd": [sys.executable, "-m", "pytest", "-q", "tests/test_frozen.py"],
+            "target": "零上传（构建排除面）",
+        },
+        {
+            "name": "freeze-把排不掉的socket也排掉",
+            "file": os.path.join(HERE, "freeze_build.py"),
+            "old": "OUTBOUND_EXCLUDES = (\n    \"ssl\",",
+            "new": "OUTBOUND_EXCLUDES = (\n    \"socket\",  # 变异：连排不掉的 socket 也排（产物会跑不起来）\n    \"ssl\",",
+            "cmd": [sys.executable, "-m", "pytest", "-q", "tests/test_frozen.py"],
+            "target": "零上传（socket 残留登记制）",
+        },
+        {
+            "name": "freeze-出站命中面缩水",
+            "file": os.path.join(HERE, "freeze_build.py"),
+            "old": "OUTBOUND_MODULE_PREFIXES = OUTBOUND_EXCLUDES",
+            "new": "OUTBOUND_MODULE_PREFIXES = (\"ssl\",)  # 变异：命中面缩水（多半出站组件扫不到）",
+            "cmd": [sys.executable, "-m", "pytest", "-q", "tests/test_frozen.py"],
+            "target": "零上传（命中面逐个可检出）",
+        },
+        {
+            "name": "freeze-命中面放宽成筛子",
+            "file": os.path.join(HERE, "freeze_build.py"),
+            "old": "OUTBOUND_MODULE_PREFIXES = OUTBOUND_EXCLUDES",
+            "new": "OUTBOUND_MODULE_PREFIXES = (\"urllib\",)  # 变异：把 urllib.parse 也判成出站",
+            "cmd": [sys.executable, "-m", "pytest", "-q", "tests/test_frozen.py"],
+            "target": "零上传（非出站模块不误判）",
+        },
+        {
+            "name": "freeze-白名单丢掉benchmark",
+            "file": os.path.join(HERE, "freeze_build.py"),
+            "old": "    return patterns",
+            "new": "    return [p for p in patterns if p.startswith(\"data/\")]  # 变异：丢掉 benchmark 白名单",
+            "cmd": [sys.executable, "-m", "pytest", "-q", "tests/test_frozen.py"],
+            "target": "内嵌数据（白名单覆盖运行时资产）",
+        },
+        {
+            "name": "freeze-空模式豁免整体放行",
+            "file": os.path.join(HERE, "freeze_build.py"),
+            "old": "            if pattern in DECLARED_EMPTY_PATTERNS:\n                continue  # 已登记的空模式（理由见 DECLARED_EMPTY_PATTERNS）",
+            "new": "            continue  # 变异：所有空模式都放行",
+            "cmd": [sys.executable, "-m", "pytest", "-q", "tests/test_frozen.py"],
+            "target": "内嵌数据（空模式豁免受登记约束）",
+        },
+        {
+            "name": "freeze-落点规则放宽",
+            "file": os.path.join(HERE, "freeze_build.py"),
+            "old": "    raise ValueError(\"未登记的随包数据落点：%s（落点规则只有 data/ 与 benchmark/ 两条）\" % tail)",
+            "new": "    return tail  # 变异：未登记落点也放行",
+            "cmd": [sys.executable, "-m", "pytest", "-q", "tests/test_frozen.py"],
+            "target": "内嵌数据（落点规则）",
+        },
+        {
+            "name": "freeze-打包不排序",
+            "file": os.path.join(HERE, "freeze_build.py"),
+            "old": "    members.sort(key=lambda item: item[0])",
+            "new": "    # 变异：不排序（依赖目录遍历序，打包即不确定）",
+            "cmd": [sys.executable, "-m", "pytest", "-q", "tests/test_frozen.py"],
+            "target": "打包确定性（条目排序）",
+        },
+        {
+            "name": "freeze-打包改用压缩",
+            "file": os.path.join(HERE, "freeze_build.py"),
+            "old": "            info.compress_type = zipfile.ZIP_STORED",
+            "new": "            info.compress_type = zipfile.ZIP_DEFLATED  # 变异：引入压缩器差异",
+            "cmd": [sys.executable, "-m", "pytest", "-q", "tests/test_frozen.py"],
+            "target": "打包确定性（ZIP_STORED）",
+        },
+        {
+            "name": "freeze-中立环境不清干净",
+            "file": os.path.join(HERE, "freeze_build.py"),
+            "old": "    env = {}\n    systemroot = os.environ.get(\"SYSTEMROOT\")",
+            "new": "    env = dict(os.environ)  # 变异：带着开发机变量跑产物\n    systemroot = os.environ.get(\"SYSTEMROOT\")",
+            "cmd": [sys.executable, "-m", "pytest", "-q", "tests/test_frozen.py"],
+            "target": "真跑产物（env -i 等价环境）",
+        },
+        {
+            "name": "freeze-输出解码只认utf8",
+            "file": os.path.join(HERE, "freeze_build.py"),
+            "old": "    try:\n        return raw.decode(\"utf-8\")\n    except UnicodeDecodeError:\n        pass",
+            "new": "    return raw.decode(\"utf-8\", \"replace\")  # 变异：不回落 locale（产物输出读成乱码）",
+            "cmd": [sys.executable, "-m", "pytest", "-q", "tests/test_frozen.py"],
+            "target": "真跑产物（输出解码回退链）",
+        },
+        {
+            "name": "freeze-版本下限不校验",
+            "file": os.path.join(HERE, "freeze_build.py"),
+            "old": "    if major < 6:",
+            "new": "    if False:  # 变异：不校验 PyInstaller 版本下限",
+            "cmd": [sys.executable, "-m", "pytest", "-q", "tests/test_frozen.py"],
+            "target": "冻结通道（PyInstaller ≥6）",
+        },
+        {
+            "name": "disclaimer-臆造tilde目录",
+            "file": os.path.join(SRC, "checkup_ledger", "disclaimer.py"),
+            "old": (
+                "    expanded = _expanduser(_HOME_SENTINEL)\n"
+                "    if expanded == _HOME_SENTINEL:\n"
+                "        return None\n"
+                "    return os.path.abspath(expanded)"
+            ),
+            "new": (
+                "    expanded = _expanduser(_HOME_SENTINEL)\n"
+                "    return os.path.abspath(expanded)  # 变异：解不出主目录也照用（臆造 ~ 目录）"
+            ),
+            "cmd": [sys.executable, "-m", "pytest", "-q", "tests/test_layering.py"],
+            "target": "免责（不臆造 ~ 目录）",
+        },
+        {
+            "name": "disclaimer-没有标记位置也写",
+            "file": os.path.join(SRC, "checkup_ledger", "disclaimer.py"),
+            "old": "    target = accepted_path(home, env)\n    if not target:\n        return False",
+            "new": "    target = accepted_path(home, env)  # 变异：不挡「没有可写位置」",
+            "cmd": [sys.executable, "-m", "pytest", "-q", "tests/test_layering.py"],
+            "target": "免责（无主目录时不写、不崩）",
+        },
     ]
 
 

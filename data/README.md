@@ -1,6 +1,6 @@
 # data/README.md — 数据依据与纪律
 
-- 状态：v5 2026-10-17（M4 回写：台账只存事实、导出词根门、渲染零判定、首启免责落点）
+- 状态：v6 2026-10-17（M5 回写：冻结交付面的随包数据白名单、落点、零上传与确定性边界）
 
 ## 一、依据查证记录（三态：✅已核对 / ⬜待核对；基准日 2026-10-15，M1 复查 2026-10-16）
 
@@ -274,3 +274,64 @@ CSV 与 Markdown 两处各维护一套标签，早晚一处改了一处没改。
   `os.makedirs` 抛的是 `ValueError`。）
 - `*.db` 已在 `.gitignore`；PII gate 的类型面拦 `*.db`/`*.sqlite`——
   `tests/test_pii_gate.py` 新增三条（真建台账库被拦 + `.gitignore` 覆盖 + 仓库无被跟踪 db）。
+
+## 十、M5 冻结交付面的口径落点（2026-10-17）
+
+### 1. 随包数据白名单**单一来源** = `pyproject.toml` 的 `package-data`
+
+`data/*.yaml|yml`（包内 `src/checkup_ledger/data/`）+ `benchmark/*.json`。冻结构建脚本
+**从它实算展开**、再派生落点，不手写第二份清单。落点两条（对应两个运行时消费者）：
+
+| 白名单 | 落点 | 谁在读 |
+|---|---|---|
+| `data/*.yaml` | exe 旁 `data/` | `paths.resolve_data_dir()` 冻结态分支读 `<frozen_root>/data` |
+| `benchmark/*.json` | 包内 `checkup_ledger/benchmark/` | `benchmark.runner.cases_path()` 按模块 `__file__` 定位 |
+
+**`data/*.yml` 是声明为空模式**：仓库当前只有 `.yaml`（19 条知识库条目），保留 `.yml`
+模式是为将来新增 `.yml` 分册时不必改安装面声明。这类"合法的空模式"**逐条登记理由**
+（`freeze_build.DECLARED_EMPTY_PATTERNS`，由测试锁死清单）；未登记的空模式仍然报错。
+
+### 2. 样例集**不随包**（开发期资产 ≠ 运行时必需）
+
+`data/samples/` 按 `plan/04` 第一节属 **B 类合成样例集**——它是**开发期资产**（基准的
+样例驱动层、生成器的产物），不进安装面也不进冻结构建命令；`test_frozen.py` 专条断言
+"构建命令不拷样例集 + 白名单实算结果不含样例集"。冻结产物内 `bench` 的样例层如实报
+"未启用（样例集不在位）"，只有规则驱动层跑（不伪造通过）。
+
+### 3. "零上传"的口径边界（**实测偏差，如实登记**）
+
+可扫断言的口径是**"无可出站能力的组件"**：TLS（`ssl`/`_ssl`/`libssl`）、HTTP
+（`http`/`urllib.request`）、FTP/SMTP/telnet/XML-RPC、异步与并发调度——一律不在包内。
+
+**但 `socket` 这个名字排不掉**：`pdfminer/__init__.py` 在模块级
+`from importlib.metadata import version` → `importlib.metadata` 模块级 `import email`
+→ `email.utils` 模块级 `import socket`；强行 `--exclude-module socket` 会让
+`import pdfplumber` 直接 `ModuleNotFoundError`（实测 `ingest` 报 exit 3）。
+故保留 `socket`/`selectors` 这两个**不含协议栈**的名字并**显式登记**
+（清单 + 理由 + 测试锁死 + 变异验证）。**判据 = 有没有出站能力，不是有没有那个字符串**——
+这条边界写在这里，免得后来者把它读成"零上传已放松"。
+
+### 4. 打包确定性的口径边界
+
+- **成立**：同一份 dist 两次打 zip **逐字节一致**（`ZIP_STORED` + 条目排序 + 固定
+  `date_time`/`create_system`/`external_attr`）。
+- **不成立**：exe 本体**逐字节可复现**——实测同机连打两次的 exe sha256 都不同
+  （体积相同、构建期时间戳不同）。故留档口径是"打包过程确定"，不是"产物可复现"。
+
+### 5. 内嵌数据对账的判据（**双向**，不是只查漏拷）
+
+① 白名单每条都在产物里（查漏拷）→ ② 产物两个数据目录里的文件都在白名单内（查多拷）
+→ ③ 逐份 sha256 与仓库冻结件一致（防构建期被改写/归一化）。只做 ① 的门对"顺手把样例集
+也打进去"是瞎的——那正是"包内容与承诺不符"的另一半。
+
+### 6. 免责标记的落点边界：**解不出主目录就不写**（M5 实测收窄）
+
+第九节第 5 条定的落点是"用户主目录"（`~/.checkup_ledger/accepted`）。M5 在中立环境
+（`env -i` 等价）跑冻结产物时发现：环境里没有 `USERPROFILE`/`HOMEDRIVE`+`HOMEPATH`/
+`HOME` 时，`os.path.expanduser("~")` **原样返回字符串 `~`**，经 `abspath` 就变成
+"**当前工作目录下的 `~` 文件夹**"——实测跑 `ledger`（触发首启免责）后，工作目录里
+真的多出 `~/.checkup_ledger/accepted`。
+
+这与"纯本地、不写用户没让写的地方"的承诺相冲突，故口径收窄为：
+**解不出主目录 = 没有可写的标记位置 → 不写**（返回 `False`、不抛错、**绝不回落 CWD**），
+按"未接受"处理（免责照念，宁可多念一次）。用户主目录**可解析**时行为不变。

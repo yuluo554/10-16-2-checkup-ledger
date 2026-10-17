@@ -735,6 +735,55 @@ def test_disclaimer_banner_text_carries_the_required_statements():
         assert keyword in text, "免责文本缺关键表述：%s" % keyword
 
 
+def test_disclaimer_does_not_invent_a_tilde_directory(monkeypatch, tmp_path):
+    """**主目录解不出来时不得臆造 `~` 目录**（M5 实测抓到的真缺陷）。
+
+    `os.path.expanduser("~")` 在环境里没有 `USERPROFILE`/`HOMEDRIVE`+`HOMEPATH`/`HOME`
+    时**原样返回字符串 `~`**，经 `abspath` 就落成"当前工作目录下的 `~` 文件夹"。
+    实测：在 `env -i` 里跑冻结产物（`ledger` 触发首启免责）→ 工作目录里真的多出
+    `~/.checkup_ledger/accepted`。那是**用户可见的污染**。
+
+    判据：解不出主目录 → 路径为 `None`、写标记返回 `False`、且**不去 CWD 里建目录**。
+    """
+    from checkup_ledger import disclaimer
+
+    # 打桩**模块级别名**（不是 `os.path.expanduser`——那会改到标准库函数本身，
+    # 波及同一进程里的其他代码），模拟"环境里没有主目录变量"。
+    monkeypatch.setattr(disclaimer, "_expanduser", lambda path: path)
+    monkeypatch.chdir(tmp_path)
+
+    assert disclaimer.home_dir() is None, "无主目录时仍解析出一个目录（会臆造 ~ 目录）"
+    assert disclaimer.accepted_path(env={}) is None, "无主目录时仍给出标记路径"
+    assert disclaimer.mark_accepted(env={}) is False, "无主目录时写标记未如实返回失败"
+    assert disclaimer.needs_disclaimer(env={}), "无主目录时被当成已接受（免责会漏念）"
+    assert not os.path.exists(os.path.join(str(tmp_path), "~")), (
+        "工作目录里被建出了 `~` 目录（污染用户 CWD）"
+    )
+
+
+def test_disclaimer_uses_real_home_when_resolvable(monkeypatch):
+    """配对守：主目录**解析得出来**时照旧落标记——上一条不能把正常路径一并禁掉。"""
+    from checkup_ledger import disclaimer
+
+    monkeypatch.setattr(disclaimer, "_expanduser", lambda path: os.path.join(os.sep, "home-of-user"))
+    resolved = disclaimer.home_dir()
+    assert resolved == os.path.abspath(os.path.join(os.sep, "home-of-user")), (
+        "主目录可解析时未被采用：%s" % resolved
+    )
+    assert disclaimer.accepted_path(env={}) == os.path.join(
+        resolved, ".checkup_ledger", "accepted"
+    ), "主目录可解析时的标记路径不对"
+
+
+def test_disclaimer_rejects_an_unexpanded_tilde_passed_explicitly():
+    """显式传 `home="~"` 同样按"解不出来"处理——那是调用方漏展开的信号，不是路径。"""
+    from checkup_ledger import disclaimer
+
+    assert disclaimer.home_dir("~") is None, "显式传入的未展开 `~` 被当成真实目录"
+    assert disclaimer.home_dir("   ") is None, "空白主目录未被拒绝"
+    assert disclaimer.mark_accepted(home="~", env={}) is False, "未展开的 `~` 被落盘了"
+
+
 def test_helpers_isolate_disclaimer_marker_from_real_home():
     """**测试不得污染开发者/CI 的真实主目录**（实测抓到的真缺陷）。
 

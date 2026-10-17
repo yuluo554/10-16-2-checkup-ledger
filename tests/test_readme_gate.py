@@ -176,7 +176,9 @@ def _all_declared_import_names():
 
 
 # 仓库脚本模块：不是安装面的一部分，由 `tests/conftest.py` 把 `tools/` 加进 sys.path
-REPO_SCRIPT_MODULES = frozenset({"tools", "fixtures", "helpers"})
+# （`freeze_build` 是 M5 的冻结构建/验证驱动——测试直接 import 它的纯函数做静态门，
+# 而不是走子进程；它同样不属于安装面）
+REPO_SCRIPT_MODULES = frozenset({"tools", "fixtures", "helpers", "freeze_build"})
 
 
 def test_face3_tests_imports_resolve_to_declared_places():
