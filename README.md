@@ -40,8 +40,8 @@ cd 10-16-2-checkup-ledger
 # 核心能力零第三方依赖，仅知识库需要 PyYAML
 python -m pip install -e .
 
-# 测试（开发用，与 CI 用同一 extras 集合）
-python -m pip install -e ".[dev]"
+# 测试（开发用，与 CI 用同一 extras 集合；[pdf] 为输入层门禁的测试期依赖）
+python -m pip install -e ".[dev,pdf]"
 python -m pytest
 ```
 
@@ -254,7 +254,7 @@ git config core.hooksPath .githooks
 
 ## 项目状态
 
-- 当前：**M5 交付**——首期五模块**全部落地**，全链路贯通：
+- 当前：**M6 发布收尾中**——首期五模块**全部落地**，全链路贯通：
   模块① 输入层（PDF 文本层直读 + RapidOCR 扫描件兜底 + 低置信复核闭环）→
   模块② 规范化层（指标名映射 + 单位归一 + 待人工映射队列）→
   模块③ 区间判定层（三级优先 + 四态机械标记）→
@@ -262,7 +262,8 @@ git config core.hooksPath .githooks
   **模块⑤ 导出（CSV/Markdown 就诊摘要）+ 本地 HTML 报告（折线 + 自身历史分位 + 参考区间带）**。
   **`NOT_READY`(4) 已整项退役**（不再有"尚未落地"的模块）。
   **M5 起另有免安装冻结产物**（PyInstaller，见上方「免安装产物」节）：数据随包、零上传可扫、打包过程确定、真跑过。
-- 下一棒：**M6 发布**（git tag + GitHub Release 附产物 + 发布留档三件套）。
+- 下一棒：**M6 发布执行**（建仓 + 推送 + CI 首跑对账 + tag + GitHub Release 附产物）。
+  发布留档见 [`plan/RELEASE-M6.md`](plan/RELEASE-M6.md)（边执行边回填，只写实测到的）。
 - 里程碑与 DoD 见 [`plan/05-里程碑与发布.md`](plan/05-里程碑与发布.md)；架构见 [`plan/02-架构与技术选型.md`](plan/02-架构与技术选型.md)。
 
 ### 本地等价校验（诚实口径）

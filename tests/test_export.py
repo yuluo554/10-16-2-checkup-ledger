@@ -17,7 +17,7 @@ import tempfile
 
 import pytest
 
-from helpers import repo_path, run_cli, yaml_bounds
+from helpers import requires_pdf, repo_path, run_cli, yaml_bounds
 
 from checkup_ledger.export import (
     ADVISORY_ROOTS,
@@ -349,6 +349,7 @@ def test_export_double_run_is_byte_identical(out_dir):
 # ---------------------------------------------------------------- 端到端
 
 
+@requires_pdf
 def test_end_to_end_export_via_cli(out_dir):
     """端到端：真实 PDF 夹具 → 抽取/规范化/判定 → 导出 CSV（产物过词根门）。"""
     db = os.path.join(out_dir, "ledger.db")

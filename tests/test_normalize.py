@@ -23,7 +23,7 @@ import os
 
 import pytest
 
-from helpers import repo_path, run_cli, step_of, yaml_bounds
+from helpers import requires_pdf, repo_path, run_cli, step_of, yaml_bounds
 
 from checkup_ledger.engine.compare import judge_all
 from checkup_ledger.model import (
@@ -384,6 +384,7 @@ def test_reason_labels_are_human_readable_and_never_silently_dropped():
 
 
 @pytest.mark.parametrize("case_id", PDF_CASES)
+@requires_pdf
 def test_end_to_end_pdf_fixtures_match_truth(case_id):
     """**端到端贯通**：夹具 PDF → ingest → normalize → judge，与真值逐行一致。
 
@@ -404,6 +405,7 @@ def test_end_to_end_pdf_fixtures_match_truth(case_id):
     assert len(normalized.measurements) == 4
 
 
+@requires_pdf
 def test_line_ref_survives_normalization():
     """溯源链在规范化层**不能断**：`Measurement.line_ref` 必须保留页/行/来源文件。"""
     from checkup_ledger.config import load_config
@@ -420,6 +422,7 @@ def test_line_ref_survives_normalization():
         assert ref.line_no >= 1
 
 
+@requires_pdf
 def test_end_to_end_range_source_is_visible_in_judged_output():
     """三级优先在**产物里显式可见**：自印区间 → `report_printed`。
 
@@ -508,6 +511,7 @@ def test_normalize_ingest_rejects_leaked_pending_rows():
 # ============================================================ CLI 面
 
 
+@requires_pdf
 def test_cli_normalize_reports_source_and_pending_mapping():
     """CLI 面：判定来源与待人工映射都要打印出来（产物可审计）。"""
     sample = _fixture("pdf/ingest-pdf-plain.pdf")
@@ -517,6 +521,7 @@ def test_cli_normalize_reports_source_and_pending_mapping():
     assert "已映射" in out
 
 
+@requires_pdf
 def test_cli_normalize_json_is_deterministic():
     """双跑字节一致：同输入两次产出的 JSON 逐字节相等（确定性写盘单点）。"""
     import tempfile

@@ -20,7 +20,7 @@ import tempfile
 
 import pytest
 
-from helpers import bounds_pair, repo_path, run_cli, step_of, yaml_bounds
+from helpers import requires_pdf, bounds_pair, repo_path, run_cli, step_of, yaml_bounds
 
 from checkup_ledger.ledger import (
     DEFAULT_SUBJECT,
@@ -319,6 +319,7 @@ def test_ledger_handle_is_context_manager_and_closes():
 # ---------------------------------------------------------------- 端到端（真实夹具 → 台账）
 
 
+@requires_pdf
 def test_end_to_end_ingest_normalize_judge_ledger(db_path):
     """端到端贯通：真实 PDF 夹具 → 抽取 → 规范化 → 判定 → 入库 → 读回。
 

@@ -18,7 +18,7 @@ import tempfile
 
 import pytest
 
-from helpers import bounds_pair, repo_path, run_cli, yaml_bounds
+from helpers import requires_pdf, bounds_pair, repo_path, run_cli, yaml_bounds
 
 from checkup_ledger.model import (
     FLAG_HIGH,
@@ -272,6 +272,7 @@ def test_series_from_rows_rejects_rows_without_name():
 # ---------------------------------------------------------------- 端到端
 
 
+@requires_pdf
 def test_end_to_end_report_via_cli():
     """端到端：真实 PDF 夹具 → 入库 → 出报告（含折线、区间带、零外链）。"""
     with tempfile.TemporaryDirectory() as tmp:
@@ -291,6 +292,7 @@ def test_end_to_end_report_via_cli():
     assert find_external_resources(document) == [], "报告含外链"
 
 
+@requires_pdf
 def test_end_to_end_report_after_two_visits_has_trend():
     """两次不同日期入库 → 报告折线含两个点（纵向趋势真的成形）。"""
     with tempfile.TemporaryDirectory() as tmp:

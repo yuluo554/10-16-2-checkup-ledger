@@ -299,8 +299,9 @@ def test_face4_readme_extras_match_pyproject():
 def test_face4_optional_extras_are_documented_in_readme():
     """反向：pyproject 声明的**可选能力** extras 必须在 README 里出现过。
 
-    这条挡的是 petfood 实测缺口：README 让用户去跑某工具，而那个工具依赖的
-    extra 在 README 里从未出现——用户照做到那一步才炸。
+    这条挡的是同系列项目实测过的缺口（项目代号按品牌隔离纪律不落库）：README
+    让用户去跑某工具，而那个工具依赖的 extra 在 README 里从未出现——用户照做到
+    那一步才炸。
     """
     readme = read_text("README.md")
     declared = _declared_extras()

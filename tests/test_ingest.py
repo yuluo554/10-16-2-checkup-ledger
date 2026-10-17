@@ -19,7 +19,7 @@ import sys
 
 import pytest
 
-from helpers import repo_path, run_cli
+from helpers import requires_pdf, repo_path, run_cli
 
 from checkup_ledger.ingest import (
     IngestError,
@@ -86,6 +86,7 @@ def _scripted_scan(threshold, boxes):
 
 
 @pytest.mark.parametrize("case_id", PDF_CASES)
+@requires_pdf
 def test_pdf_fixture_matches_truth(case_id):
     """三种 PDF 形态都必须抽出与真值一致的行。"""
     lines = ingest_pdf_text_layer(_fixture("pdf/%s.pdf" % case_id))
@@ -93,6 +94,7 @@ def test_pdf_fixture_matches_truth(case_id):
     assert got == _truth(case_id)["expected_lines"], "抽取结果与真值不符：%s" % got
 
 
+@requires_pdf
 def test_pdf_layouts_yield_identical_lines():
     """**形态无关性**（本层最承重的断言）：三种形态的行文本必须逐字相同。
 
@@ -108,6 +110,7 @@ def test_pdf_layouts_yield_identical_lines():
         assert got == baseline, "形态 %s 的行文本与基线不同：%s vs %s" % (case_id, got, baseline)
 
 
+@requires_pdf
 def test_pseudo_space_is_normalized():
     """伪空格专项：逐字定位 PDF 抽出的行里**不得出现** `U/ L` 这类被拆开的单位。"""
     lines = ingest_pdf_text_layer(_fixture("pdf/ingest-pdf-per-char.pdf"))
@@ -116,6 +119,7 @@ def test_pseudo_space_is_normalized():
         assert "  " not in line.text, "行内出现连续空格（未归一）：%r" % line.text
 
 
+@requires_pdf
 def test_text_layer_confidence_is_full():
     """PDF 文本层没有 OCR 不确定性，行置信度为满分（不是"没测"的哨兵值）。"""
     lines = ingest_pdf_text_layer(_fixture("pdf/ingest-pdf-plain.pdf"))
@@ -402,6 +406,7 @@ def test_cli_ingest_exits_three_without_dependency(monkeypatch):
     assert "缺少可选依赖" in err
 
 
+@requires_pdf
 def test_cli_ingest_reports_real_result():
     """CLI 面正向：有依赖时抽出真实行（不是空结果、不是伪结果）。"""
     code, out, _err = run_cli(["ingest", _fixture("pdf/ingest-pdf-per-char.pdf")])
@@ -493,6 +498,7 @@ def test_chars_to_fragments_keeps_whitespace():
     assert [fragment.text for fragment in fragments] == ["A", " ", "B"]
 
 
+@requires_pdf
 def test_pdf_document_reports_notes_for_imageless_page():
     """没有文本层的页必须**说出来**（不静默当空页）。
 

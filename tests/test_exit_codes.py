@@ -13,7 +13,7 @@ import sys
 
 import pytest
 
-from helpers import repo_path, run_cli
+from helpers import requires_pdf, repo_path, run_cli
 
 from checkup_ledger.exit_codes import (
     ALL_EXIT_CODES,
@@ -86,6 +86,7 @@ def test_exit_usage_from_unknown_bench_suite():
     assert "未知名套件" in err
 
 
+@requires_pdf
 def test_ingest_is_no_longer_intercepted_by_not_ready():
     """M2：模块① 输入层已落地，**不得**再走 exit 4 拦截。
 
@@ -100,6 +101,7 @@ def test_ingest_is_no_longer_intercepted_by_not_ready():
     assert "抽取引擎" in out, "ingest 未走真实实现：\n%s" % out
 
 
+@requires_pdf
 def test_normalize_is_no_longer_intercepted_by_not_ready():
     """M3：模块② 规范化层已落地，**不得**再走 exit 4 拦截。
 
@@ -115,6 +117,7 @@ def test_normalize_is_no_longer_intercepted_by_not_ready():
     assert "report_printed" in out, "判定来源未在产物里显式可见：\n%s" % out
 
 
+@requires_pdf
 def test_ledger_export_report_are_no_longer_intercepted_by_not_ready():
     """M4：模块④ 台账与模块⑤ 导出/报告已落地，**不得**再走 exit 4 拦截。
 

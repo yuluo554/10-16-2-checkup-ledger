@@ -6,6 +6,8 @@ import sys
 import tempfile
 from contextlib import redirect_stderr, redirect_stdout
 
+import pytest
+
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC_ROOT = os.path.join(REPO_ROOT, "src")
 
@@ -28,6 +30,20 @@ os.environ.setdefault(_ACCEPTED_ENV, os.path.join(_ISOLATED_HOME, "accepted"))
 
 def repo_path(*parts) -> str:
     return os.path.join(REPO_ROOT, *parts)
+
+
+# 可选重件探活：真实 PDF 夹具驱动的那批测试（`ingest`/`normalize` 端到端、
+# 退出码退役三条、导出/报告端到端）在缺 `[pdf]` 时会走 exit 3 契约——那是
+# **正确行为**，但对这些测试是"硬失败"（断言 exit 0 拿到 exit 3）。
+# 与真实 OCR 回归同一条纪律：**声明式跳过，不伪造通过**。守卫集中在 helpers
+# 单点（各测试文件自写一份探活 = 口径漂移），阳性面在 CI 的安装注释里对账。
+def _probe_pdf():
+    from checkup_ledger.ingest.deps import has_dependency
+
+    return has_dependency("pdfplumber")
+
+
+requires_pdf = pytest.mark.skipif(not _probe_pdf(), reason="未安装 [pdf]（pdfplumber）；PDF 文本层通路按契约跳过")
 
 
 def read_text(rel_path) -> str:
