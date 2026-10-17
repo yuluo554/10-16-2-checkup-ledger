@@ -155,7 +155,9 @@ py -X utf8 -m checkup_ledger selftest       # ③ Windows 中文控制台推荐�
 
 ## 免安装产物（冻结 CLI）
 
-不想装 Python 也能用：把仓库打包成**目录式自包含产物**（exe + 数据同目录），拷到任意机器直接跑。
+不想装 Python 也能用：**直接从 [Release](https://github.com/yuluo554/10-16-2-checkup-ledger/releases/tag/v0.1.0)
+下载 `checkup-ledger-0.1.0-win64.zip`**（Windows x64），解压后运行 `checkup-ledger.exe`——
+或者自行把仓库打包成**目录式自包含产物**（exe + 数据同目录），拷到任意机器直接跑。
 
 ```bash
 # 构建 + 验证一次跑齐（产物一律落在仓库外的目录）
@@ -254,7 +256,7 @@ git config core.hooksPath .githooks
 
 ## 项目状态
 
-- 当前：**M6 发布收尾中**——首期五模块**全部落地**，全链路贯通：
+- 当前：**v0.1.0 已发布**（[Release](https://github.com/yuluo554/10-16-2-checkup-ledger/releases/tag/v0.1.0) 附免安装产物）——首期五模块**全部落地**，全链路贯通：
   模块① 输入层（PDF 文本层直读 + RapidOCR 扫描件兜底 + 低置信复核闭环）→
   模块② 规范化层（指标名映射 + 单位归一 + 待人工映射队列）→
   模块③ 区间判定层（三级优先 + 四态机械标记）→
@@ -262,8 +264,8 @@ git config core.hooksPath .githooks
   **模块⑤ 导出（CSV/Markdown 就诊摘要）+ 本地 HTML 报告（折线 + 自身历史分位 + 参考区间带）**。
   **`NOT_READY`(4) 已整项退役**（不再有"尚未落地"的模块）。
   **M5 起另有免安装冻结产物**（PyInstaller，见上方「免安装产物」节）：数据随包、零上传可扫、打包过程确定、真跑过。
-- 下一棒：**M6 发布执行**（建仓 + 推送 + CI 首跑对账 + tag + GitHub Release 附产物）。
-  发布留档见 [`plan/RELEASE-M6.md`](plan/RELEASE-M6.md)（边执行边回填，只写实测到的）。
+- 下一棒：无（首期收官）。后续方向（桌面端消费端 / 区间分册扩充 / 多语言报告）未排期。
+  发布留档见 [`plan/RELEASE-M6.md`](plan/RELEASE-M6.md)（CI 对账 / 本体验证 / 匿名复核全部实测回填）。
 - 里程碑与 DoD 见 [`plan/05-里程碑与发布.md`](plan/05-里程碑与发布.md)；架构见 [`plan/02-架构与技术选型.md`](plan/02-架构与技术选型.md)。
 
 ### 本地等价校验（诚实口径）

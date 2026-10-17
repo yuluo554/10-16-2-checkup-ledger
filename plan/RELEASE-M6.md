@@ -90,6 +90,13 @@ git rev-list --count HEAD → 14
 | push | run | 结果 |
 |---|---|---|
 | push #1（main 全历史 17 提交，`5e4ab86`） | run #1 `38995173116` | **3 绿 1 红**：windows-3.8 ✅ / windows-3.12 ✅ / ubuntu-3.12 ✅ / **freeze ❌** |
+| push #2（CI 修复 `b9c3f8d`） | run #2 `38995390373` | **4 绿**：四矩阵全绿（含 freeze job——真构建 + 真扫 + 中立真跑产物在远端首次实证） |
+| push #3（tag `v0.1.0`） | run #3 `38995536433` | **4 绿**（**实测：`on: push` 无 filters 时 tag push 确实触发独立 run**，与个保合规审计工作台 M6 实录同行为；以当轮 `gh run list` 实测为准留档） |
+
+对账规则（会随发布后小提交增长，写规则不写终值）：**push 事件数 = run 数**（一次 push
+推多提交仍算 1 个 run）；本表为截至 tag push（3 push = 3 run）的快照；本文件所在提交
+及其后的每次 push 各自还会再产生 1 个 run。首跑失败记录保留不抹除（run #1 的红就是
+freeze 安装面缺口的实证）。
 
 **首跑失败（不遮掩，如实配对）**：freeze job 的 `test_frozen_run_leaves_no_tilde_directory_in_neutral_cwd`
 红——**freeze 作业安装面缺口**：只装 `.[dev,freeze]` 没装 `[pdf]` → PyInstaller 打包时
@@ -113,22 +120,46 @@ pdfplumber 不在构建环境 → 产物缺 PDF 文本层能力 → 中立环境
 - ⚠️ 附件哈希在**最终基线**（发布收尾提交）后需从该基线重建复核——若收尾提交改变了
   `src/`/`tools/`，须重打并更新本节 sha256（tag、附件、留档三者同基线）。
 
-- tag：⬜（拟 `v0.1.0`，annotated，指向含本留档完整内容的提交——**用
-  `git rev-list -n1 v0.1.0` 与 `git rev-parse HEAD` 核对相等**，不写死哈希）
-- Release 附件上传与 `gh release view <tag> --json assets,tagName,isDraft`（draft=false +
-  附件名在列）：⬜ 待回填
+- tag：✅ `v0.1.0`（annotated，指向 CI 全绿的修复提交 `b9c3f8d`——`git rev-list -n1 v0.1.0`
+  与 `git rev-parse HEAD`（打 tag 时点）核对相等；**tag 与附件、Release 同基线**）。
+  **实测：tag push 触发了独立 run**（run #3，见 §四对账表）。
+- Release：✅ `gh release create v0.1.0 <附件> --verify-tag`；
+  `gh release view v0.1.0 --json assets,tagName,isDraft` 回读：
+  **`isDraft=false` + 附件在列 + digest 逐位一致**：
+  - 附件名：`checkup-ledger-0.1.0-win64.zip`（45,165,829 字节）
+  - GitHub 回读 digest：`sha256:3c46185224515f8eb130936284cabe1e073cf6a1aa9664200aa656d7e69001fe`
+  - 本地留档（§五上文）同哈希——**发布的就是验证过的产物**（据链闭合）。
+- 附件与 tag 树同源：`git diff v0.1.0..HEAD -- src/ tools/` 为空（产物与发布源码同运行时基线）。
 
-## §六 发布物本体已验——⬜ 待回填
+## §六 发布物本体已验
 
-**本地预演已做**（附件 = 本机构建 + 确定性打包；解压冒烟 3/3 过，见 §五）。
-但"发布物本体已验"的完整口径是**真下载**（隔着一次上传与一次下载）：
-真下载 Release 附件 → sha256 与留档一致 → 中立目录解压跑冻结态自检：
-（三步证据各一行，⬜ 待发布后回填）
+三步齐（**完整口径 = 真下载**，隔着上传与下载两个环节）：
 
-## §七 发布后全新 clone 复核——⬜ 待回填
+1. **真下载**：`gh release download v0.1.0`（仓库外目录执行）→ 文件 45,165,829 字节在位；
+2. **sha256 与留档逐位一致**：`3c46185224515f8eb130936284cabe1e073cf6a1aa9664200aa656d7e69001fe`
+   （与 §五留档、GitHub `assets[0].digest` 三方一致）；
+3. **中立目录解压跑冻结态自检**：`selftest` → exit 0（**6/6**）、`bench` → exit 0（达标）、
+   未知命令 → exit 2（契约不因冻结态改变）。
 
-GitHub 真克隆 → 全量测试 → 元信息终检（topics/description/assets digest 与 README 定位一致）：
-⬜ 待回填
+**匿名无凭据复核（独立一关——owner 视角证明不了匿名访客能看到什么）**：
+
+- 裸 `git clone https://github.com/…`（无凭据）：成功，HEAD = `b9c3f8d`，tag `v0.1.0` 在位；
+- 裸 `curl -sL` 下载附件（无 token/header）：sha256 与留档逐位一致；
+- 裸 `curl` 读 `api.github.com/repos/…`：**200**（公开可访问实证）。
+
+## §七 发布后全新 clone 复核
+
+- **真克隆**：`git clone https://github.com/yuluo554/10-16-2-checkup-ledger.git`（GitHub 远端，
+  非 local 硬链）→ HEAD = `b9c3f8d`，18 提交（17 + 发布收尾），tag `v0.1.0` 在位；
+- **照 README 装齐跑全量**：新 venv `.[dev,pdf]` → **436 passed, 10 skipped**（与开发机、
+  干净环境三方收集数对账一致）；
+- **元信息终检**：
+  - description：已设（建仓时 `--description`），与 README 定位一致（gh api 回读在位）；
+  - topics：建仓时为空（预判命中），**发布后补齐 10 个**并回读确认：
+    `cli`/`deterministic`/`health-checkup`/`lab-results`/`ledger`/`local-first`/`ocr`/
+    `pdf-plumber`/`privacy`/`python`（与 pyproject keywords 同源 + 生态检索词）；
+  - release assets digest 与留档一致（§五/§六）；
+  - `visibility: public`（gh api 回读）。
 
 ## §八 对外动作的用户确认
 

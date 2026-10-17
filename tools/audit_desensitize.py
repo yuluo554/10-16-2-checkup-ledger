@@ -68,6 +68,9 @@ def _personal_path_patterns():
 _EMAIL_RE = re.compile(
     r"(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@(?!users\.noreply\.github\.com)[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
 )
+# 传输地址豁免：`git@github.com:…`（SSH 形态）是发布固有公开元数据，不是个人邮箱
+# （labelcheck 式豁免：`^(git|ssh|hg)@<host>` 起头的行内形态放行；真个人邮箱仍是硬门）。
+_TRANSPORT_RE = re.compile(r"\b(?:git|ssh|hg)@[A-Za-z0-9.-]+[.:]")
 _SECRET_RE = re.compile(r"\bsk-[A-Za-z0-9]{16,}\b")
 # 手机号正则**程序化拼装**（不写裸数值）：裸写的数字段会与区间端点撞值，
 # 触发零字面量门禁（M5 实录：版本号/字节数片段同坑）。段长与首位段限也实算。
@@ -123,6 +126,10 @@ def check_text(rel_path, text):
             kind = "email"
             if rel_path in _ALLOW_BY_RULE[kind]:
                 hits.append("%s:%d [%s] 阳性对照（行内放行：%s）" % (rel_path, index, kind, AUDIT_ALLOW_MARKER))
+                continue
+            if _TRANSPORT_RE.search(line):
+                # 传输地址 = 发布固有公开元数据（豁免不进输出：它不是"命中后放行"，
+                # 而是本就不在判据面内——与 noreply 同一豁免语义）
                 continue
             hits.append("%s:%d [email] 非豁免邮箱形态 x1" % (rel_path, index))
         if _SECRET_RE.search(line):
@@ -254,6 +261,7 @@ def _negative_samples():
         ("GitHub 账号名（发布坐标）", "notes/f.md", "github.com/" + _repo_dir_name().replace("checkup", "yuluo554/x"), None),
         ("普通路径", "notes/g.md", "配置写在 data/config.yaml", None),
         ("长十六进制串", "notes/h.md", "sha256 " + "a1f8" * 16, None),
+        ("SSH 传输地址（服务地址非个人邮箱）", "notes/i.md", "git remote 已切 " + "git" + "@" + "github.com:x/y.git", None),
     )
 
 
