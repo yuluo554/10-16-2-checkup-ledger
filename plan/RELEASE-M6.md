@@ -92,6 +92,7 @@ git rev-list --count HEAD → 14
 | push #1（main 全历史 17 提交，`5e4ab86`） | run #1 `38995173116` | **3 绿 1 红**：windows-3.8 ✅ / windows-3.12 ✅ / ubuntu-3.12 ✅ / **freeze ❌** |
 | push #2（CI 修复 `b9c3f8d`） | run #2 `38995390373` | **4 绿**：四矩阵全绿（含 freeze job——真构建 + 真扫 + 中立真跑产物在远端首次实证） |
 | push #3（tag `v0.1.0`） | run #3 `38995536433` | **4 绿**（**实测：`on: push` 无 filters 时 tag push 确实触发独立 run**，与个保合规审计工作台 M6 实录同行为；以当轮 `gh run list` 实测为准留档） |
+| push #4（发布留档回填 `04eb101`） | run #4 `38996488072` | **4 绿**（对账规则复核成立：4 push = 4 run；匿名 API 回读该提交可见 = 公开历史终态） |
 
 对账规则（会随发布后小提交增长，写规则不写终值）：**push 事件数 = run 数**（一次 push
 推多提交仍算 1 个 run）；本表为截至 tag push（3 push = 3 run）的快照；本文件所在提交
