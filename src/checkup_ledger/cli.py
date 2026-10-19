@@ -270,6 +270,20 @@ def _check_data_dir() -> Tuple[bool, str]:
     return True, "数据目录：%s" % resolved
 
 
+def _today_iso() -> str:
+    """自检用的"今天"（`CHECKUP_LEDGER_TODAY` 可注入，便于复现与守门）。
+
+    只有**提示类**判据（复核锚是否逾期）读它，且读了也**不改退出码**——
+    时间不是判定输入，故不能让"今天几号"决定一次自检的成败。
+    """
+    override = os.environ.get("CHECKUP_LEDGER_TODAY")
+    if override:
+        return override
+    import datetime
+
+    return datetime.date.today().isoformat()
+
+
 def _check_knowledge() -> Tuple[bool, str]:
     from checkup_ledger.loader import ALL_STATUS, load_indicators
     from checkup_ledger.paths import indicators_path
@@ -287,10 +301,24 @@ def _check_knowledge() -> Tuple[bool, str]:
         if entry.status == "verified" and not entry.evidence.strip():
             return False, "条目 %s verified 但 evidence 为空" % entry.canonical_name
     verified = sum(1 for e in table.entries if e.usable_as_default)
-    return True, "知识库：%d 项可生效（其中 verified 可作默认值 %d 项）、%d 项未启用" % (
+    summary = "知识库：%d 项可生效（其中 verified 可作默认值 %d 项）、%d 项未启用" % (
         len(table.entries),
         verified,
         len(table.disabled),
+    )
+
+    # 复核锚提示（新增判据，**只提示、不改退出码**）：锚点缺失是合法的（老知识库），
+    # 逾期也只是"该再试一次拿原文了"——它不使知识库变得不可用（条目本来就全 pending）。
+    if not table.next_review:
+        return True, summary + "；未设复核锚（next_review）"
+    if table.review_overdue(_today_iso()):
+        return True, summary + (
+            "；**复核锚 %s 已逾期**（%s），请重试核对原文——逾期只提示，不影响退出码"
+            % (table.next_review, table.review_interval or "周期未登记")
+        )
+    return True, summary + "；复核锚 %s（未逾期，%s）" % (
+        table.next_review,
+        table.review_interval or "周期未登记",
     )
 
 
@@ -425,6 +453,12 @@ def cmd_bench(args) -> int:
 
     if report.get("notes"):
         print(report["notes"])
+    # 口径显式化（DEC1=B）：有套件未启用时，紧贴结论行写出「本次仅 X」——
+    # 退出码仍是 0（未启用不等于未达标），但"只跑了一层"必须在输出里可读。
+    # 这句刻意写在结论行**之前**：读者先看到范围，再看结论，不会把 22/22 读成全部。
+    if report.get("scope_note"):
+        print("%s——**未启用不等于通过**，退出码仍为 0（详见 README 退出码表）"
+              % report["scope_note"])
     print("基准结论：%s（%d/%d）" % ("达标" if report["passed"] else "未达标",
                                      report["passed_count"], report["total"]))
 

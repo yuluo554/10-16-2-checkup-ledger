@@ -225,6 +225,73 @@ def test_unsupported_schema_version_is_rejected():
             load_indicators(_write_yaml(tmp, text))
 
 
+# ---------------------------------------------------------------- 复核锚（next_review）
+
+
+def test_repo_knowledge_base_declares_next_review_in_iso_date():
+    """**本仓**的 `indicators.yaml` 必须带机读复核锚，且形状是 `YYYY-MM-DD`。
+
+    判据两面：
+    - 锚点**存在**（没有锚点 = "已核对"永远停在过去时，知识库没有下次再核的入口）；
+    - 形状**零填充 8 位日期**（不零填充的月份/日会被字符串比较读错序，也会让
+      `review_overdue` 的字典序比较给出错误答案）。
+    """
+    import re
+
+    table = load_indicators(INDICATORS)
+    assert table.next_review, "知识库缺 next_review 复核锚"
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", table.next_review), (
+        "next_review 不是零填充 YYYY-MM-DD：%r" % table.next_review
+    )
+    assert table.review_interval, "知识库缺 review_interval（复核周期未登记）"
+
+
+def test_repo_knowledge_base_entries_remain_pending():
+    """**复核锚不得被用来改状态**：所有条目仍必须 `pending`。
+
+    "加了 next_review 就等于核对过了"是本迭代最容易犯的错——锚点是**待办提醒**，
+    不是核对结果。WS/T 全文仍不可直连，条目一旦被顺手改成 verified，判定路径就会
+    开始用未核对原文的区间。
+    """
+    table = load_indicators(INDICATORS)
+    offenders = [e.canonical_name for e in table.entries if e.status != STATUS_PENDING]
+    assert not offenders, "条目被改成非 pending：%s（核对原文才可改）" % offenders
+    assert table.verified_defaults() == {}, "判定路径出现了 verified 默认值"
+
+
+def test_missing_anchor_is_legal_and_never_reports_overdue():
+    """老知识库（无锚点）**不报逾期**——没有锚点不等于"早就该复核了"。"""
+    text = BASE_HEADER + """
+  - canonical_name: ALT
+    unit: %s
+    default_range: %s
+    source: { standard: X, status: pending }
+""" % (ALT_UNIT, inline_range("ALT"))
+    with tempfile.TemporaryDirectory() as tmp:
+        table = load_indicators(_write_yaml(tmp, text))
+    assert table.next_review is None
+    assert table.review_overdue("2099-01-01") is False, "无锚点却判逾期（凭空造判据）"
+
+
+def test_malformed_next_review_is_rejected():
+    """形状错的锚点必须**拒绝加载**——"看起来有复核纪律、实际读不出来"比没有更危险。"""
+    for bad in ('"2027-1-6"', '2027/10/16', '""', '20271016'):
+        text = 'schema_version: 1\nnext_review: %s\ndisclaimer: x\nindicators:\n' % bad
+        with tempfile.TemporaryDirectory() as tmp:
+            with pytest.raises(KnowledgeError) as excinfo:
+                load_indicators(_write_yaml(tmp, text))
+            assert "next_review" in str(excinfo.value)
+
+
+def test_review_overdue_compares_dates_not_status():
+    """逾期判定只比对日期字符串，**不读时钟、不改 status**。"""
+    table = IndicatorDict(entries=[], disabled=[], next_review="2027-10-16", review_interval="annual")
+    assert table.review_overdue("2027-10-15") is False, "到期前一天就判逾期"
+    assert table.review_overdue("2027-10-16") is False, "到期当天不该算逾期"
+    assert table.review_overdue("2027-10-17") is True, "到期次日未判逾期"
+    assert table.entries == [] and table.disabled == [], "逾期判定改动了条目状态"
+
+
 def test_missing_file_is_not_silently_empty():
     """文件缺失 → 报错，**不静默当空库**（空库会让一切走拒判，看起来"一切正常"）。"""
     with pytest.raises(KnowledgeError):
@@ -263,6 +330,61 @@ def test_disabled_entries_are_reported_not_dropped():
 
 
 # ---------------------------------------------------------------- CLI 面
+
+
+def test_selftest_prints_review_anchor(monkeypatch):
+    """`selftest` 的 knowledge 项必须把复核锚**打印出来**（让锚点可见，不只是写进 YAML）。"""
+    monkeypatch.delenv("CHECKUP_LEDGER_TODAY", raising=False)
+    code, out, _err = run_cli(["selftest"])
+    assert code == 0, "自检未通过（复核锚不该影响退出码）：\n%s" % out
+    assert "复核锚" in out, "自检输出里看不到复核锚：\n%s" % out
+    assert load_indicators(INDICATORS).next_review in out
+
+
+def test_selftest_overdue_anchor_warns_but_keeps_exit_zero(monkeypatch):
+    """逾期只**提示**、`selftest` 仍 exit 0——锚点是待办提醒，不是知识库不可用的理由。
+
+    反面对照必须存在：若逾期也 exit 1，本仓"6/6 通过"会在 2027-10-17 自动变红，
+    而那一天知识库的状态其实一个字节都没变。
+    """
+    monkeypatch.setenv("CHECKUP_LEDGER_TODAY", "2099-01-01")
+    code, out, _err = run_cli(["selftest"])
+    assert code == 0, "复核锚逾期把自检打成失败（应只提示）：\n%s" % out
+    assert "已逾期" in out, "逾期未在自检输出里提示：\n%s" % out
+    assert "自检结论：6/6 通过" in out, "逾期改变了自检的通过数"
+
+
+def test_selftest_reports_missing_anchor_explicitly(monkeypatch, tmp_path):
+    """没有锚点时自检要说"未设复核锚"——不静默、也不假称有锚。
+
+    造一份去掉 `next_review` 行的数据目录，经 `CHECKUP_LEDGER_DATA` 指过去
+    （`selftest --data-dir` 不参与 knowledge 项，故这里用环境变量走真实解析链）。
+    """
+    from checkup_ledger.paths import indicators_path
+
+    source_dir = os.path.dirname(indicators_path())
+    source = open(indicators_path(), "r", encoding="utf-8").read()
+    stripped = "\n".join(
+        line for line in source.splitlines() if not line.startswith("next_review:")
+    )
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "indicators.yaml").write_text(stripped, encoding="utf-8")
+    (data_dir / "config.yaml").write_text(
+        open(os.path.join(source_dir, "config.yaml"), "r", encoding="utf-8").read(),
+        encoding="utf-8",
+    )
+
+    # 剥离自证：解析这份夹具必须真的**读不到**锚点（否则下面的断言来自源文件而非夹具）
+    assert load_indicators(str(data_dir / "indicators.yaml")).next_review is None, (
+        "剥离未生效：夹具里仍有可解析的 next_review 键（测试自身的构造有问题）"
+    )
+
+    monkeypatch.setenv("CHECKUP_LEDGER_DATA", str(data_dir))
+    code, out, _err = run_cli(["selftest"])
+    assert code == 0, "无锚点不该让自检失败：\n%s" % out
+    assert "未设复核锚" in out, "缺锚点未如实报出：\n%s" % out
 
 
 def test_cli_indicators_lists_disabled_section():

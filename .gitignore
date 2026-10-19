@@ -48,3 +48,7 @@ Thumbs.db
 # Logs / temp
 *.log
 tmp/
+
+# 二次迭代交接物（诊断/路线/提示词/执行记录）：含本机绝对路径，
+# 且描述的是"本机某一轮"而非仓库内容。pii_gate 与 audit_desensitize 都会红。
+update/

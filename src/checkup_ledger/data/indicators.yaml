@@ -27,6 +27,10 @@
 
 schema_version: 1
 updated: 2026-10-16
+# 复核锚（机读）：本知识库全部条目为 pending（WS/T 全文不可直连），"复核"的语义是
+# "何时再试一次能不能拿到全文"。next_review 只作提示，不改任何条目的 status。
+review_interval: annual
+next_review: "2027-10-16"
 disclaimer: >
   本字典仅用于检验结果的机械判定（H/L），不构成诊断依据。
   各医疗机构应以本机构 LIS 打印区间为最终准绳；本字典区间为常见项默认值，以报告单和医嘱为准。

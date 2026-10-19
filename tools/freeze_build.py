@@ -138,8 +138,9 @@ def require_pyinstaller():
 def _package_data_patterns():
     """从 `pyproject.toml` 的 `[tool.setuptools.package-data]` 读随包数据模式。
 
-    自写极简解析（**不引 tomllib**）：3.8 没有 tomllib，为解析一个配置而给测试期
-    引依赖得不偿失。TOML 子集在此够用——段内 `checkup_ledger = ["a", "b"]`，可跨行。
+    自写极简解析（**不引 tomllib**）：本脚本只读 `package-data` 这一小段，为它引
+    一个解析器（或假定构建期环境必有 tomllib）得不偿失。TOML 子集在此够用
+    ——段内 `checkup_ledger = ["a", "b"]`，可跨行。
 
     **为什么从 pyproject 读**：随包数据白名单已在 `package-data` 里定义过一次
     （安装面用它）。构建脚本再手写一份就是第二处定义——改一处忘一处，冻结包里

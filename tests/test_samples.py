@@ -351,6 +351,71 @@ def test_sample_layer_reports_unavailable_data_instead_of_faking_pass(monkeypatc
     assert all(suite["not_enabled"] for suite in report["suites"]), "无数据时套件未标未启用"
 
 
+# ---------------------------------------------------------------- 门 6b：口径显式化（DEC1=B）
+
+
+def test_installed_form_bench_prints_scope_note_and_still_exits_zero(monkeypatch, tmp_path):
+    """**安装态形态**：样例集不在位时 `bench` 必须打印「本次仅规则驱动层」且仍 exit 0。
+
+    这条挡的是"退出码表没覆盖该形态"这个可读性缺陷：22/22 是真的（未启用不计入），
+    但仅凭 exit 0 无法区分"两层都跑"与"只跑一层"。故判据有两面：
+    - 输出**出现**该标注（原因码 `samples_absent`，不是被 `--only` 排掉的）；
+    - 退出码仍是 0（范围标注不是降级成 exit 1——那会打破冻结产物的既定承诺）。
+
+    用 `tmp_path` 造一个空目录指向 `CHECKUP_LEDGER_SAMPLES`：等价于安装态下
+    `data/samples/` 不存在，而无需真去装一个 wheel。
+    """
+    empty_root = tmp_path / "no-samples-here"
+    empty_root.mkdir()
+    monkeypatch.setenv("CHECKUP_LEDGER_SAMPLES", str(empty_root))
+
+    code, out, _err = run_cli(["bench"])
+    assert code == 0, "安装态形态下 bench 应仍 exit 0（未启用 ≠ 未达标）：\n%s" % out
+    assert "本次仅规则驱动层" in out, (
+        "未启用套件存在时未打印「本次仅规则驱动层」——exit 0 的含义仍不显式：\n%s" % out
+    )
+    assert "samples_absent" in out, "未启用原因码缺失（应区分「样例集不在位」与「--only 排除」）：\n%s" % out
+    # 结论行必须是最后一行，且标注在它之前——顺序反了读者会先看到结论。
+    lines = [line for line in out.splitlines() if line.strip()]
+    assert lines[-1].startswith("基准结论：达标"), "结论行不在末尾：%r" % lines[-1]
+    note_index = next(i for i, line in enumerate(lines) if "本次仅规则驱动层" in line)
+    assert note_index < len(lines) - 1, "范围标注写到了结论行之后"
+
+
+def test_scope_note_is_absent_when_both_layers_run():
+    """反面对照：两层都跑时**不得**出现范围标注——否则"能两层"这件事永远读不出来。"""
+    code, out, _err = run_cli(["bench"])
+    assert code == 0, "源码态（两层齐全）bench 未达标：\n%s" % out
+    assert "本次仅" not in out, "两层都跑了却仍打印范围标注（标注失去信息量）：\n%s" % out
+
+
+def test_scope_note_distinguishes_only_filter_from_absent_samples():
+    """「--only 排除」与「样例集不在位」必须是**两个**原因码，不能混成一句。
+
+    混在一起的后果：读者看到"样例层未启用"时无法判断是"我自己排掉的"还是
+    "这份安装根本没有样例集"——前者无害，后者需要换到源码检出里跑。
+    """
+    from checkup_ledger.benchmark.layered import (
+        REASON_ONLY_FILTER,
+        REASON_SAMPLES_ABSENT,
+        run_layered_bench,
+    )
+
+    only_report = run_layered_bench(only="边界语义")
+    reasons = {item["reason"] for item in only_report["not_enabled_suites"]}
+    assert REASON_ONLY_FILTER in reasons, "--only 排除未标 only_filter：%r" % reasons
+    assert "本次仅规则驱动层" in only_report["scope_note"], (
+        "scope_note 未说明只跑了一层：%r" % only_report["scope_note"]
+    )
+
+    absent = run_layered_bench(samples_root=os.path.join(repo_path("."), "no-such-samples-dir"))
+    absent_reasons = {item["reason"] for item in absent["not_enabled_suites"]}
+    assert REASON_SAMPLES_ABSENT in absent_reasons, (
+        "样例集不在位未标 samples_absent：%r" % absent_reasons
+    )
+    assert REASON_SAMPLES_ABSENT != REASON_ONLY_FILTER
+
+
 # ---------------------------------------------------------------- 门 7：台账是生成物
 
 

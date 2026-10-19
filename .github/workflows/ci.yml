@@ -2,6 +2,16 @@ name: CI
 
 on: [push, pull_request, workflow_dispatch]
 
+# 最小权限：CI 只读仓库内容（不写 issue/PR/status）。写权限一律显式加到需要的 job，
+# 免得 `pull_request` 上默认的读写令牌把权限面敞开。
+permissions:
+  contents: read
+
+# 同 ref 上推新提交时取消旧跑：旧 run 的结果已被新提交作废，留着只是排队与噪声。
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   # 救 CI 全部步骤的编码面：不加 -X utf8 的 python 进程（如 pytest）也拿 UTF-8
   PYTHONUTF8: "1"
@@ -16,17 +26,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # 解释器口径统一到 3.12（DEC2=B）：构建通道本来只认 3.12，
+        # 继续测更低版本会留下"测试与构建两套口径"。
+        # python 维度只剩一个版本，宽度仍保留两个 OS——跨 OS 差异与跨版本差异是两件事。
         include:
-          - { os: windows-latest, python: "3.8" }
           - { os: windows-latest, python: "3.12" }
           - { os: ubuntu-latest, python: "3.12" }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           # 行尾守门需读工作树；历史扫描类守门若将来引入则需 fetch-depth: 0
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
 
@@ -92,11 +104,11 @@ jobs:
     name: freeze-build / py3.12 (windows)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 

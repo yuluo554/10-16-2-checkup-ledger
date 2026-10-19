@@ -1,5 +1,7 @@
 [build-system]
-requires = ["setuptools>=61"]
+# 下限抬到 77：`license` 的 SPDX 字符串与 `license-files` 都是 PEP 639 能力，
+# setuptools 77 才落地。低于此版本的构建前端会把 SPDX 字符串当非法 license 值。
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,13 +9,15 @@ name = "checkup-ledger"
 version = "0.1.0"
 description = "体检台账工作台：把历年体检报告录成个人检验指标台账，做纵向趋势与按参考区间的异常标记。纯本地、零上传、确定性判定。"
 readme = "README.md"
-requires-python = ">=3.8"
-license = { text = "MIT" }
+requires-python = ">=3.12"
+# SPDX 字符串（PEP 639）：TOML table 形态自 setuptools 77 起弃用，
+# 硬期限 2027-02-18（SetuptoolsDeprecationWarning 原文）。
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "yuluo554" }]
 keywords = ["health-checkup", "lab-results", "local-first", "privacy", "ledger"]
 classifiers = [
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.12",
   "Operating System :: OS Independent",
   "Topic :: Utilities",

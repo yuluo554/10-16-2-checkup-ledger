@@ -93,7 +93,7 @@ class DisabledEntry:
 
 
 class IndicatorDict:
-    """加载后的指标字典：可生效条目 + 未启用清单。"""
+    """加载后的指标字典：可生效条目 + 未启用清单 + 复核锚（可选）。"""
 
     def __init__(
         self,
@@ -101,11 +101,23 @@ class IndicatorDict:
         disabled: List[DisabledEntry],
         disclaimer: str = "",
         schema_version: int = 0,
+        next_review: Optional[str] = None,
+        review_interval: Optional[str] = None,
     ):
         self.entries = entries
         self.disabled = disabled
         self.disclaimer = disclaimer
         self.schema_version = schema_version
+        # 复核锚（机读）：`next_review` 是"下次再试一次核对原文"的日期，
+        # 不是区间数值本身，故不进判定路径、不影响 `pending` 状态。
+        self.next_review = next_review
+        self.review_interval = review_interval
+
+    def review_overdue(self, today: str) -> bool:
+        """`next_review` 早于 `today` 即逾期。无锚点 → False（不凭空判逾期）。"""
+        if not self.next_review:
+            return False
+        return self.next_review < today
 
     def by_canonical(self, name: str) -> Optional[IndicatorEntry]:
         for entry in self.entries:
@@ -243,6 +255,31 @@ def gate_entry(raw: dict, index: int) -> Tuple[Optional[IndicatorEntry], Optiona
     return entry, None
 
 
+def _parse_review_anchor(root: dict, key: str) -> Optional[str]:
+    """读复核锚（`next_review` / `review_interval`）。
+
+    缺省是**合法的**（老知识库没有锚点 → 返回 None，不凭空判逾期）。但**给了就必须合规**：
+    `next_review` 是 `YYYY-MM-DD` 零填充日期，`review_interval` 是非空字符串——
+    形状不对的锚点是"看起来有复核纪律、实际读不出来"，比没有更危险。
+    """
+    raw = root.get(key)
+    if raw is None:
+        return None
+    if not isinstance(raw, str) or not raw.strip():
+        raise KnowledgeError("%s 应为非空字符串，实为 %r" % (key, raw))
+    value = raw.strip()
+    if key == "next_review":
+        parts = value.split("-")
+        ok = (
+            len(parts) == 3
+            and all(part.isdigit() for part in parts)
+            and [len(part) for part in parts] == [4, 2, 2]
+        )
+        if not ok:
+            raise KnowledgeError("next_review 应为 YYYY-MM-DD（零填充），实为 %r" % value)
+    return value
+
+
 def load_indicators(path) -> IndicatorDict:
     """加载并过门禁。文件缺失/格式错 → KnowledgeError（不静默当空库）。"""
     target = os.fspath(path)
@@ -264,6 +301,11 @@ def load_indicators(path) -> IndicatorDict:
     schema_version = root.get("schema_version")
     if schema_version != 1:
         raise KnowledgeError("不支持的 schema_version：%r（本版本只认 1）" % (schema_version,))
+
+    # 复核锚是**根级**元数据，与条目无关，故在条目校验前读——坏锚点不该被
+    # "indicators 列表有问题"这类更外层的错误盖掉（读者会去改错地方）。
+    next_review = _parse_review_anchor(root, "next_review")
+    review_interval = _parse_review_anchor(root, "review_interval")
 
     raw_indicators = root.get("indicators")
     if not isinstance(raw_indicators, list) or not raw_indicators:
@@ -293,4 +335,6 @@ def load_indicators(path) -> IndicatorDict:
         disabled=disabled,
         disclaimer=disclaimer,
         schema_version=int(schema_version),
+        next_review=next_review,
+        review_interval=review_interval,
     )

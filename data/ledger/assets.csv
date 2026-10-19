@@ -35,4 +35,4 @@ B-合成样例,data/samples/truth/case-009-printed-overrides-default.truth.json,
 B-合成样例,data/samples/truth/case-010-no-range.truth.json,801,4e9ab4a608b94b426c3dba25a6f0d28c98d6c229090849dc790b97dfcbafb426
 B-合成样例,data/samples/truth/case-011-lisi-2025.truth.json,1665,0b6eac0f518a0efb460566f8267224bdab8beda8b622e002a28ee70693f91513
 B-合成样例,data/samples/truth/case-012-lowconf-review.truth.json,799,3c27812f8a20a3f0905f82c824744a1811dfdf72523143f6f46317464367cfe0
-A-内置知识库,src/checkup_ledger/data/indicators.yaml,14344,d3b466a5f50a4f7213ca2526e63b70ba9159f63a3728218b5bcf88cc25f2fafa
+A-内置知识库,src/checkup_ledger/data/indicators.yaml,14613,6bb09bad2632c789d3dfdca37a41c7e4789e72d28cfbee389fb7d7aab6ed2b7d
