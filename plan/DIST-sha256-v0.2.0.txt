@@ -1,0 +1,19 @@
+# plan/DIST-sha256-v0.2.0.txt — v0.2.0 发布物 sha256 台账
+# 打包面 = dist/checkup-ledger 目录树（PyInstaller onedir 产物）
+# 配方 = ZIP_STORED + 条目按路径排序 + 固定 date_time + 固定外部属性（tools/freeze_build.py::pack_deterministic_zip）
+# 复算：py -m tools.freeze_build --dist <产物目录>（其「打包确定性」一节即两次打包比对）
+#
+# 口径（与 plan/RELEASE-M6.md 一致，不放松）：
+#   · **同 dist → 同 zip 逐字节一致**（工具保证，本轮实测：构建期自测与发布期重打同 sha）
+#   · **exe 构建本身不承诺跨机字节一致**（PyInstaller 产物受 bootloader / 依赖版本 / 路径影响）
+zip_name: checkup-ledger-0.2.0-win64.zip
+sha256: 54865d49b60a35db4f2cede988cad930fcfa2b5e85f56913679140aaaaecde9b
+bytes: 46445940
+version: 0.2.0
+built_date: 2026-10-24
+# 核验记录（2026-10-24）：
+#   ① 构建期自测（同一 dist 两次打包）→ 54865d49b60a35db4f2cede988cad930fcfa2b5e85f56913679140aaaaecde9b
+#   ② 发布期重打同一 dist        → 同一 sha（逐字符）
+#   （②′ GitHub asset digest / Release 正文见 Release 页，第三、四方）
+# 冻结态验收（中立目录 + env -i 等价，由 freeze_build.py 真跑）：
+#   version -> exit 0 / selftest -> exit 0（6/6，含「数据目录落在 exe 目录内」）/ bench -> exit 0 / no-such-command -> exit 2

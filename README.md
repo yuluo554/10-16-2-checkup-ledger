@@ -165,8 +165,8 @@ py -X utf8 -m checkup_ledger selftest       # ③ Windows 中文控制台推荐�
 
 ## 免安装产物（冻结 CLI）
 
-不想装 Python 也能用：**直接从 [Release](https://github.com/yuluo554/10-16-2-checkup-ledger/releases/tag/v0.1.0)
-下载 `checkup-ledger-0.1.0-win64.zip`**（Windows x64），解压后运行 `checkup-ledger.exe`——
+不想装 Python 也能用：**直接从 [Release](https://github.com/yuluo554/10-16-2-checkup-ledger/releases/tag/v0.2.0)
+下载 `checkup-ledger-0.2.0-win64.zip`**（Windows x64），解压后运行 `checkup-ledger.exe`——
 或者自行把仓库打包成**目录式自包含产物**（exe + 数据同目录），拷到任意机器直接跑。
 
 ```bash
@@ -266,7 +266,9 @@ git config core.hooksPath .githooks
 
 ## 项目状态
 
-- 当前：**v0.1.0 已发布**（[Release](https://github.com/yuluo554/10-16-2-checkup-ledger/releases/tag/v0.1.0) 附免安装产物）——首期五模块**全部落地**，全链路贯通：
+- 当前：**v0.2.0 已发布**（[Release](https://github.com/yuluo554/10-16-2-checkup-ledger/releases/tag/v0.2.0) 附免安装产物）——首期五模块**全部落地**，全链路贯通：
+  > **v0.1.0 → v0.2.0 的破坏性变更**：`requires-python` 由 `>=3.8` 抬到 **`>=3.12`**（3.8 已于 2024-10 EOL；PEP 639 元数据要求 `setuptools>=77`，它不支持 3.8）。
+  > **两处用户可感知的新增**：知识库带上**机读复核锚**（`next_review` / `review_interval`），`selftest` 会把它读出来并在逾期时提示（**只提示、不改退出码**）；`bench` 新增 `scope_note` / `not_enabled_suites`，把「本次只跑了规则驱动层（样例层未启用：`samples_absent`）」显式说出来——**未启用套件不计入通过数，退出码仍为 0**。
   模块① 输入层（PDF 文本层直读 + RapidOCR 扫描件兜底 + 低置信复核闭环）→
   模块② 规范化层（指标名映射 + 单位归一 + 待人工映射队列）→
   模块③ 区间判定层（三级优先 + 四态机械标记）→

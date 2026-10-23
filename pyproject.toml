@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "checkup-ledger"
-version = "0.1.0"
+version = "0.2.0"
 description = "体检台账工作台：把历年体检报告录成个人检验指标台账，做纵向趋势与按参考区间的异常标记。纯本地、零上传、确定性判定。"
 readme = "README.md"
 requires-python = ">=3.12"
